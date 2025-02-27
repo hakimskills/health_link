@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-import 'offer_model.dart';
+import 'login_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   @override
@@ -9,24 +10,33 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  List<Offer> offers = [];
+  String? userName;
   bool isLoading = true;
   bool isError = false;
 
   @override
   void initState() {
     super.initState();
-    fetchOffers();
+    fetchUserData();
   }
 
-  Future<void> fetchOffers() async {
+  Future<void> fetchUserData() async {
     try {
-      final response = await http.get(Uri.parse("http://10.0.2.2:3000/api/offers"));
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? token = prefs.getString("auth_token");
+
+      final response = await http.get(
+        Uri.parse("http://10.0.2.2:8000/api/user"),
+        headers: {
+          "Authorization": "Bearer $token",
+          "Accept": "application/json",
+        },
+      );
 
       if (response.statusCode == 200) {
-        List<dynamic> jsonData = jsonDecode(response.body);
+        final data = jsonDecode(response.body);
         setState(() {
-          offers = jsonData.map((json) => Offer.fromJson(json)).toList();
+          userName = data['name'];
           isLoading = false;
         });
       } else {
@@ -43,30 +53,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Future<void> _logout() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? token = prefs.getString("auth_token");
+
+    final response = await http.post(
+      Uri.parse("http://10.0.2.2:8000/api/logout"),
+      headers: {
+        "Authorization": "Bearer $token",
+        "Accept": "application/json",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      await prefs.remove("auth_token");
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => LoginScreen()),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Dashboard")),
+      appBar: AppBar(
+        title: Text("Dashboard"),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.logout),
+            onPressed: _logout,
+          ),
+        ],
+      ),
       body: isLoading
           ? Center(child: CircularProgressIndicator()) // Show loading spinner
           : isError
-          ? Center(child: Text("Failed to load offers."))
-          : ListView.builder(
-        itemCount: offers.length,
-        itemBuilder: (context, index) {
-          final offer = offers[index];
-          return Card(
-            margin: EdgeInsets.all(10),
-            child: ListTile(
-              leading: offer.offerImage != null
-                  ? Image.network(offer.offerImage!, width: 50, height: 50, fit: BoxFit.cover)
-                  : Icon(Icons.image_not_supported),
-              title: Text(offer.offerName, style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text("${offer.offerDesc}\nPrice: \$${offer.offerPrice.toString()}"),
-              trailing: Text("Qty: ${offer.offerQuantity}"),
-            ),
-          );
-        },
+          ? Center(child: Text("Failed to load user data."))
+          : Center(
+        child: Text(
+          "Welcome, $userName!",
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+        ),
       ),
     );
   }
