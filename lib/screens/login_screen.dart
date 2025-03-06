@@ -3,6 +3,9 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dashboard_screen.dart';
+import 'dashboards/admin_dashboard.dart';
+import 'dashboards/healthcare_dashboard.dart';
+import 'dashboards/supplier_dashboard.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart'; // Import Forgot Password Screen
 
@@ -48,16 +51,27 @@ class _LoginScreenState extends State<LoginScreen> {
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
-        String token = responseData['token']; // ✅ Get token
+        String token = responseData['token'];
         SharedPreferences prefs = await SharedPreferences.getInstance();
-        await prefs.setString("auth_token", token); // ✅ Store token
+        await prefs.setString("auth_token", token);
 
-        print("✅ Token stored: $token"); // Debugging
+        String role = responseData['user']['role']; // Get role from API
 
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => DashboardScreen()),
-        );
+        Widget nextScreen;
+        if (role == "Healthcare Professional") {
+          nextScreen = HealthcareDashboard();
+        } else if (role == "Supplier") {
+          nextScreen = SupplierDashboard();
+        } else if (role == "Admin") {
+          nextScreen = AdminDashboard();
+        } else {
+          setState(() {
+            _loginError = "Unknown role. Contact support.";
+          });
+          return;
+        }
+
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => nextScreen));
       } else {
         setState(() {
           _loginError = responseData['message'] ?? "Login failed.";
@@ -71,6 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = false);
   }
+
 
   @override
   Widget build(BuildContext context) {

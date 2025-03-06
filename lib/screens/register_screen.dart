@@ -59,10 +59,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 201) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => LoginScreen()),
-        );
+        _showSuccessDialog("Your registration request has been submitted. An admin will review and approve it.");
       } else {
         _showErrorDialog(responseData['message'] ?? "Registration failed.");
       }
@@ -71,6 +68,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     setState(() => _isLoading = false);
+  }
+
+  void _showSuccessDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Success"),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => LoginScreen()));
+            },
+            child: Text("OK"),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showErrorDialog(String message) {
@@ -148,46 +164,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
       keyboardType: isPhoneNumber ? TextInputType.phone : TextInputType.text,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: TextStyle(color: Colors.grey),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Color(0xFF60A499), width: 2),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Color(0xFF60A499), width: 1.5),
-        ),
-        suffixIcon: isPassword || isConfirmPassword
-            ? IconButton(
-          icon: Icon(obscureText ? Icons.visibility_off : Icons.visibility),
-          onPressed: () => setState(() {
-            if (isPassword) _passwordVisible = !_passwordVisible;
-            if (isConfirmPassword) _confirmPasswordVisible = !_confirmPasswordVisible;
-          }),
-        )
-            : null,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
       ),
       validator: (value) {
-        if (value == null || value.isEmpty) {
-          return "$label is required";
-        }
-
-        if (isName && !RegExp(r"^[a-zA-Z\s-]+$").hasMatch(value)) {
-          return "Only letters, spaces, and hyphens are allowed";
-        }
-
-        if (isPhoneNumber && !RegExp(r'^\d+$').hasMatch(value)) {
-          return "Enter a valid phone number";
-        }
-
-        if (isEmail && !RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-          return "Enter a valid email";
-        }
-
-        if (isConfirmPassword && value != _passwordController.text) {
-          return "Passwords do not match";
-        }
-
+        if (value == null || value.isEmpty) return "$label is required";
+        if (isName && !RegExp(r"^[a-zA-Z\s-]+$").hasMatch(value)) return "Only letters, spaces, and hyphens are allowed";
+        if (isPhoneNumber && !RegExp(r'^\d+$').hasMatch(value)) return "Enter a valid phone number";
+        if (isEmail && !RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) return "Enter a valid email";
+        if (isConfirmPassword && value != _passwordController.text) return "Passwords do not match";
         return null;
       },
     );
@@ -218,5 +202,4 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
     );
   }
-
 }
