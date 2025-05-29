@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:health_link/user_profile/account_settings_screen.dart';
 import 'package:health_link/user_profile/profile_screen.dart';
 import '../login_screen.dart';
+import 'package:health_link/screens/reusable component/app_drawer.dart';
 
 class AdminDashboard extends StatefulWidget {
   @override
@@ -14,6 +16,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   List<dynamic> _registrationRequests = [];
   bool _isLoading = true;
   bool _isError = false;
+  final Color tealColor = Color(0xFF008080);
 
   @override
   void initState() {
@@ -26,14 +29,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
     String? token = prefs.getString("auth_token");
 
     final response = await http.get(
-      Uri.parse("http://10.0.2.2:8000/api/admin/registration-requests"),
+      Uri.parse("http://192.168.43.101:8000/api/admin/registration-requests"),
       headers: {
         "Authorization": "Bearer $token",
         "Accept": "application/json",
       },
     );
-
-    print(response.body); // Debugging step
 
     if (response.statusCode == 200) {
       final Map<String, dynamic> responseData = jsonDecode(response.body);
@@ -63,7 +64,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     String? token = prefs.getString("auth_token");
 
     final response = await http.post(
-      Uri.parse("http://10.0.2.2:8000/api/admin/${action}-request/$id"),
+      Uri.parse("http://192.168.43.101:8000/api/admin/${action}-request/$id"),
       headers: {
         "Authorization": "Bearer $token",
         "Accept": "application/json",
@@ -77,13 +78,25 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(action == "approve" ? "Request Approved" : "Request Rejected"),
-          backgroundColor: action == "approve" ? Colors.green : Colors.red,
+          content: Text(
+            action == "approve" ? "Request Approved" : "Request Rejected",
+            style: TextStyle(fontWeight: FontWeight.w500),
+          ),
+          backgroundColor: action == "approve" ? tealColor : Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: EdgeInsets.all(10),
         ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to process request"), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text("Failed to process request"),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: EdgeInsets.all(10),
+        ),
       );
     }
   }
@@ -93,38 +106,64 @@ class _AdminDashboardState extends State<AdminDashboard> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text("Request Details"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
             children: [
-              Text("Name: ${request['first_name']} ${request['last_name']}"),
-              Text("Email: ${request['email']}"),
-              Text("Phone: ${request['phone_number']}"),
-              Text("Wilaya: ${request['wilaya']}"),
-              Text("Role: ${request['role']}"),
-              Text("Status: ${request['status']}"),
-              Text("Requested On: ${request['created_at']}"),
+              Icon(Icons.person_outline, color: tealColor),
+              SizedBox(width: 8),
+              Text("Request Details", style: TextStyle(color: tealColor, fontWeight: FontWeight.bold)),
             ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildDetailRow("Name", "${request['first_name']} ${request['last_name']}"),
+                _buildDetailRow("Email", "${request['email']}"),
+                _buildDetailRow("Phone", "${request['phone_number']}"),
+                _buildDetailRow("Wilaya", "${request['wilaya']}"),
+                _buildDetailRow("Role", "${request['role']}"),
+                _buildDetailRow("Status", "${request['status']}"),
+                _buildDetailRow("Requested On", "${request['created_at']}"),
+              ],
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: Text("Close", style: TextStyle(color: Colors.grey)),
+              style: TextButton.styleFrom(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
             ),
-            TextButton(
+            ElevatedButton.icon(
+              icon: Icon(Icons.check, size: 18),
+              label: Text("Approve"),
               onPressed: () {
                 _approveRequest(request['id']);
                 Navigator.pop(context);
               },
-              child: Text("Approve", style: TextStyle(color: Colors.green)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: tealColor,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
             ),
-            TextButton(
+            ElevatedButton.icon(
+              icon: Icon(Icons.close, size: 18),
+              label: Text("Reject"),
               onPressed: () {
                 _rejectRequest(request['id']);
                 Navigator.pop(context);
               },
-              child: Text("Reject", style: TextStyle(color: Colors.red)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
             ),
           ],
         );
@@ -132,49 +171,274 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "$label: ",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(color: Colors.black54),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        backgroundColor: Color(0xFF60A499),
-        title: Text("Admin Dashboard", style: TextStyle(color: Colors.white)),
+        backgroundColor: tealColor,
+        elevation: 0,
+        title: Text(
+          "Admin Dashboard",
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh),
+            onPressed: () {
+              setState(() {
+                _isLoading = true;
+              });
+              _fetchRegistrationRequests();
+            },
+          ),
+        ],
       ),
       drawer: _buildDrawer(context),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator(color: Color(0xFF60A499)))
+          ? Center(child: CircularProgressIndicator(color: tealColor))
           : _isError
-          ? Center(child: Text("Failed to load registration requests", style: TextStyle(color: Colors.red)))
+          ? _buildErrorState()
+          : _registrationRequests.isEmpty
+          ? _buildEmptyState()
           : _buildRequestsList(),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, size: 60, color: Colors.red[300]),
+          SizedBox(height: 16),
+          Text(
+            "Failed to load registration requests",
+            style: TextStyle(
+              color: Colors.red[400],
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          SizedBox(height: 16),
+          ElevatedButton.icon(
+            icon: Icon(Icons.refresh),
+            label: Text("Try Again"),
+            onPressed: () {
+              setState(() {
+                _isLoading = true;
+              });
+              _fetchRegistrationRequests();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: tealColor,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.check_circle_outline, size: 64, color: tealColor.withOpacity(0.7)),
+          SizedBox(height: 16),
+          Text(
+            "No pending registration requests",
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+              color: Colors.black87,
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            "All caught up! Check back later.",
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.black54,
+            ),
+          ),
+          SizedBox(height: 16),
+          ElevatedButton.icon(
+            icon: Icon(Icons.refresh),
+            label: Text("Refresh"),
+            onPressed: () {
+              setState(() {
+                _isLoading = true;
+              });
+              _fetchRegistrationRequests();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: tealColor,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildRequestsList() {
     return ListView.builder(
-      padding: EdgeInsets.all(10),
+      padding: EdgeInsets.all(16),
       itemCount: _registrationRequests.length,
       itemBuilder: (context, index) {
         final request = _registrationRequests[index];
 
         return Card(
-          margin: EdgeInsets.symmetric(vertical: 8),
-          elevation: 3,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: EdgeInsets.only(bottom: 12),
+          elevation: 1,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: Colors.grey.withOpacity(0.1), width: 1),
+          ),
           child: InkWell(
+            borderRadius: BorderRadius.circular(12),
             onTap: () => _showRequestDetails(request),
-            child: ListTile(
-              title: Text("${request['first_name']} ${request['last_name']}"),
-              subtitle: Text("Email: ${request['email']}"),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  IconButton(
-                    icon: Icon(Icons.check, color: Colors.green),
-                    onPressed: () => _approveRequest(request['id']),
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: tealColor.withOpacity(0.1),
+                        child: Text(
+                          "${request['first_name'][0]}${request['last_name'][0]}",
+                          style: TextStyle(
+                            color: tealColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "${request['first_name']} ${request['last_name']}",
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              "${request['email']}",
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          "${request['role']}",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.orange[800],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  IconButton(
-                    icon: Icon(Icons.close, color: Colors.red),
-                    onPressed: () => _rejectRequest(request['id']),
+                  SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Wilaya: ${request['wilaya']}",
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.black54,
+                        ),
+                      ),
+                      Text(
+                        "Phone: ${request['phone_number']}",
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 12),
+                  Divider(),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Expanded(
+                        child: TextButton.icon(
+                          icon: Icon(Icons.check, size: 18),
+                          label: Text("Approve"),
+                          onPressed: () => _approveRequest(request['id']),
+                          style: TextButton.styleFrom(
+                            foregroundColor: tealColor,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        height: 30,
+                        width: 1,
+                        color: Colors.grey.withOpacity(0.3),
+                      ),
+                      Expanded(
+                        child: TextButton.icon(
+                          icon: Icon(Icons.close, size: 18),
+                          label: Text("Reject"),
+                          onPressed: () => _rejectRequest(request['id']),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.redAccent,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -186,35 +450,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _buildDrawer(BuildContext context) {
-    return Drawer(
-      child: Column(
-        children: [
-          UserAccountsDrawerHeader(
-            decoration: BoxDecoration(color: Color(0xFF60A499)),
-            accountName: Text("Admin", style: TextStyle(color: Colors.white)),
-            accountEmail: null,
-            currentAccountPicture: CircleAvatar(
-              backgroundColor: Colors.white,
-              child: Icon(Icons.person, size: 40, color: Color(0xFF60A499)),
-            ),
-          ),
-          ListTile(
-            leading: Icon(Icons.person, color: Color(0xFF60A499)),
-            title: Text("Profile"),
-            onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen()));
-            },
-          ),
-          Divider(),
-          ListTile(
-            leading: Icon(Icons.logout, color: Colors.red),
-            title: Text("Logout", style: TextStyle(color: Colors.red)),
-            onTap: () {
-              Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => LoginScreen()));
-            },
-          ),
-        ],
-      ),
-    );
+    return AppDrawer();
   }
+
+// Removed _logout method as it's handled by AppDrawer
 }

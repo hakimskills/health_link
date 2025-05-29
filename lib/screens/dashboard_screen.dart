@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-import '../user_profile/profile_screen.dart';
+import '../user_profile/account_settings_screen.dart';
 import 'login_screen.dart';
+import 'package:health_link/user_profile/profile_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   @override
@@ -26,7 +27,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     String? token = prefs.getString("auth_token");
 
     final response = await http.get(
-      Uri.parse("http://10.0.2.2:8000/api/user"),
+      Uri.parse("http://192.168.43.101:8000/api/user"),
       headers: {
         "Authorization": "Bearer $token",
         "Accept": "application/json",
@@ -52,7 +53,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     String? token = prefs.getString("auth_token");
 
     final response = await http.post(
-      Uri.parse("http://10.0.2.2:8000/api/logout"),
+      Uri.parse("http://192.168.43.101:8000/api/logout"),
       headers: {
         "Authorization": "Bearer $token",
         "Accept": "application/json",
