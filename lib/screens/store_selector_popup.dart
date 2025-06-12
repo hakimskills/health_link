@@ -1,8 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
-import 'dart:convert';
 
 class StoreSelector {
   // Define colors to match your theme
@@ -72,7 +73,7 @@ class _StoreSelectionContentState extends State<StoreSelectionContent> {
     if (token != null && userId != null) {
       try {
         final response = await http.get(
-          Uri.parse('http://192.168.43.101:8000/api/stores/user/$userId'),
+          Uri.parse('http://192.168.1.8:8000/api/stores/user/$userId'),
           headers: {
             'Authorization': 'Bearer $token',
             'Accept': 'application/json',
@@ -243,7 +244,8 @@ class _StoreSelectionContentState extends State<StoreSelectionContent> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               ),
               onPressed: _refreshStores,
               child: const Text('Try Again'),

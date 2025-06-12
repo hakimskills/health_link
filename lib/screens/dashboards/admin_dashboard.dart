@@ -1,11 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:health_link/screens/reusable component/app_drawer.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
-import 'package:health_link/user_profile/account_settings_screen.dart';
-import 'package:health_link/user_profile/profile_screen.dart';
-import '../login_screen.dart';
-import 'package:health_link/screens/reusable component/app_drawer.dart';
 
 class AdminDashboard extends StatefulWidget {
   @override
@@ -29,7 +27,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     String? token = prefs.getString("auth_token");
 
     final response = await http.get(
-      Uri.parse("http://192.168.43.101:8000/api/admin/registration-requests"),
+      Uri.parse("http://192.168.1.8:8000/api/admin/registration-requests"),
       headers: {
         "Authorization": "Bearer $token",
         "Accept": "application/json",
@@ -40,7 +38,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
       final Map<String, dynamic> responseData = jsonDecode(response.body);
 
       setState(() {
-        _registrationRequests = List<Map<String, dynamic>>.from(responseData['requests'] ?? []);
+        _registrationRequests =
+            List<Map<String, dynamic>>.from(responseData['requests'] ?? []);
         _isLoading = false;
       });
     } else {
@@ -64,7 +63,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     String? token = prefs.getString("auth_token");
 
     final response = await http.post(
-      Uri.parse("http://192.168.43.101:8000/api/admin/${action}-request/$id"),
+      Uri.parse("http://192.168.1.8:8000/api/admin/${action}-request/$id"),
       headers: {
         "Authorization": "Bearer $token",
         "Accept": "application/json",
@@ -84,7 +83,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
           backgroundColor: action == "approve" ? tealColor : Colors.redAccent,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           margin: EdgeInsets.all(10),
         ),
       );
@@ -94,7 +94,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
           content: Text("Failed to process request"),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           margin: EdgeInsets.all(10),
         ),
       );
@@ -106,12 +107,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
             children: [
               Icon(Icons.person_outline, color: tealColor),
               SizedBox(width: 8),
-              Text("Request Details", style: TextStyle(color: tealColor, fontWeight: FontWeight.bold)),
+              Text("Request Details",
+                  style:
+                      TextStyle(color: tealColor, fontWeight: FontWeight.bold)),
             ],
           ),
           content: SingleChildScrollView(
@@ -119,7 +123,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildDetailRow("Name", "${request['first_name']} ${request['last_name']}"),
+                _buildDetailRow(
+                    "Name", "${request['first_name']} ${request['last_name']}"),
                 _buildDetailRow("Email", "${request['email']}"),
                 _buildDetailRow("Phone", "${request['phone_number']}"),
                 _buildDetailRow("Wilaya", "${request['wilaya']}"),
@@ -134,7 +139,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
               onPressed: () => Navigator.pop(context),
               child: Text("Close", style: TextStyle(color: Colors.grey)),
               style: TextButton.styleFrom(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
               ),
             ),
             ElevatedButton.icon(
@@ -148,7 +154,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 backgroundColor: tealColor,
                 foregroundColor: Colors.white,
                 elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
               ),
             ),
             ElevatedButton.icon(
@@ -162,7 +169,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 backgroundColor: Colors.redAccent,
                 foregroundColor: Colors.white,
                 elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
               ),
             ),
           ],
@@ -225,10 +233,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
       body: _isLoading
           ? Center(child: CircularProgressIndicator(color: tealColor))
           : _isError
-          ? _buildErrorState()
-          : _registrationRequests.isEmpty
-          ? _buildEmptyState()
-          : _buildRequestsList(),
+              ? _buildErrorState()
+              : _registrationRequests.isEmpty
+                  ? _buildEmptyState()
+                  : _buildRequestsList(),
     );
   }
 
@@ -261,7 +269,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
               backgroundColor: tealColor,
               foregroundColor: Colors.white,
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
             ),
           ),
         ],
@@ -274,7 +283,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.check_circle_outline, size: 64, color: tealColor.withOpacity(0.7)),
+          Icon(Icons.check_circle_outline,
+              size: 64, color: tealColor.withOpacity(0.7)),
           SizedBox(height: 16),
           Text(
             "No pending registration requests",
@@ -306,7 +316,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
               backgroundColor: tealColor,
               foregroundColor: Colors.white,
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
             ),
           ),
         ],
@@ -372,7 +383,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                         ),
                       ),
                       Container(
-                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: Colors.orange.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(12),

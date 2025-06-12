@@ -1,7 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 
 class UpdateEmailScreen extends StatefulWidget {
   @override
@@ -35,7 +36,7 @@ class _UpdateEmailScreenState extends State<UpdateEmailScreen> {
       String? token = prefs.getString("auth_token");
 
       final response = await http.get(
-        Uri.parse("http://192.168.43.101:8000/api/user"),
+        Uri.parse("http://192.168.1.8:8000/api/user"),
         headers: {
           "Authorization": "Bearer $token",
           "Accept": "application/json",
@@ -70,7 +71,7 @@ class _UpdateEmailScreenState extends State<UpdateEmailScreen> {
       String? token = prefs.getString("auth_token");
 
       final response = await http.put(
-        Uri.parse("http://192.168.43.101:8000/api/user/update-email"),
+        Uri.parse("http://192.168.1.8:8000/api/user/update-email"),
         headers: {
           "Authorization": "Bearer $token",
           "Accept": "application/json",
@@ -158,7 +159,8 @@ class _UpdateEmailScreenState extends State<UpdateEmailScreen> {
                   SizedBox(height: 16),
                   if (_errorMessage != null)
                     Container(
-                      padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      padding:
+                          EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                       decoration: BoxDecoration(
                         color: Colors.red.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
@@ -323,21 +325,21 @@ class _UpdateEmailScreenState extends State<UpdateEmailScreen> {
         ),
         child: _isLoading
             ? SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(
-            color: Colors.white,
-            strokeWidth: 2,
-          ),
-        )
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
             : Text(
-          "Update Email",
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
-          ),
-        ),
+                "Update Email",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
       ),
     );
   }

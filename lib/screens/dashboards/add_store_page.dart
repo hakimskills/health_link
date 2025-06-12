@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 
 class AddStorePage extends StatefulWidget {
   @override
@@ -24,7 +23,7 @@ class _AddStorePageState extends State<AddStorePage> {
     if (token != null && userId != null) {
       try {
         final response = await http.post(
-          Uri.parse('http://192.168.43.101:8000/api/store'),
+          Uri.parse('http://192.168.1.8:8000/api/store'),
           headers: {
             'Authorization': 'Bearer $token',
             'Accept': 'application/json',
@@ -101,7 +100,8 @@ class _AddStorePageState extends State<AddStorePage> {
                   }
                 },
                 child: Text('Create Store'),
-                style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF008080)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFF008080)),
               ),
             ],
           ),

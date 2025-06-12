@@ -1,10 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:health_link/user_profile/profile_screen.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
-import '../user_profile/account_settings_screen.dart';
+
 import 'login_screen.dart';
-import 'package:health_link/user_profile/profile_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   @override
@@ -27,7 +28,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     String? token = prefs.getString("auth_token");
 
     final response = await http.get(
-      Uri.parse("http://192.168.43.101:8000/api/user"),
+      Uri.parse("http://192.168.1.8:8000/api/user"),
       headers: {
         "Authorization": "Bearer $token",
         "Accept": "application/json",
@@ -53,7 +54,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     String? token = prefs.getString("auth_token");
 
     final response = await http.post(
-      Uri.parse("http://192.168.43.101:8000/api/logout"),
+      Uri.parse("http://192.168.1.8:8000/api/logout"),
       headers: {
         "Authorization": "Bearer $token",
         "Accept": "application/json",
@@ -85,11 +86,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               accountName: isLoading
                   ? CircularProgressIndicator(color: Colors.white)
                   : isError
-                  ? Text("Error", style: TextStyle(color: Colors.white))
-                  : Text(
-                userName ?? "",
-                style: TextStyle(color: Colors.white, fontSize: 18),
-              ),
+                      ? Text("Error", style: TextStyle(color: Colors.white))
+                      : Text(
+                          userName ?? "",
+                          style: TextStyle(color: Colors.white, fontSize: 18),
+                        ),
               accountEmail: null, // You can add an email here if needed
               currentAccountPicture: CircleAvatar(
                 backgroundColor: Colors.white,
@@ -119,25 +120,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: isLoading
             ? CircularProgressIndicator(color: Color(0xFF60A499))
             : isError
-            ? Text(
-          "Failed to load user data.",
-          style: TextStyle(color: Colors.red, fontSize: 18),
-        )
-            : Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              "Welcome, $userName",
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF60A499),
-              ),
-            ),
-
-
-          ],
-        ),
+                ? Text(
+                    "Failed to load user data.",
+                    style: TextStyle(color: Colors.red, fontSize: 18),
+                  )
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        "Welcome, $userName",
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF60A499),
+                        ),
+                      ),
+                    ],
+                  ),
       ),
     );
   }

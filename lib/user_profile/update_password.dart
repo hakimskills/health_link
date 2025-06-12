@@ -1,7 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 
 class UpdatePasswordScreen extends StatefulWidget {
   @override
@@ -42,7 +43,7 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
       String? token = prefs.getString("auth_token");
 
       final response = await http.put(
-        Uri.parse("http://192.168.43.101:8000/api/user/update-password"),
+        Uri.parse("http://192.168.1.8:8000/api/user/update-password"),
         headers: {
           "Authorization": "Bearer $token",
           "Accept": "application/json",
@@ -129,7 +130,8 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
                     controller: _currentPasswordController,
                     label: "Current Password",
                     isVisible: _currentPasswordVisible,
-                    toggleVisibility: () => setState(() => _currentPasswordVisible = !_currentPasswordVisible),
+                    toggleVisibility: () => setState(() =>
+                        _currentPasswordVisible = !_currentPasswordVisible),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Current password is required';
@@ -142,7 +144,8 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
                     controller: _newPasswordController,
                     label: "New Password",
                     isVisible: _newPasswordVisible,
-                    toggleVisibility: () => setState(() => _newPasswordVisible = !_newPasswordVisible),
+                    toggleVisibility: () => setState(
+                        () => _newPasswordVisible = !_newPasswordVisible),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'New password is required';
@@ -158,7 +161,8 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
                     controller: _confirmPasswordController,
                     label: "Confirm New Password",
                     isVisible: _confirmPasswordVisible,
-                    toggleVisibility: () => setState(() => _confirmPasswordVisible = !_confirmPasswordVisible),
+                    toggleVisibility: () => setState(() =>
+                        _confirmPasswordVisible = !_confirmPasswordVisible),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please confirm your password';
@@ -172,7 +176,8 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
                   SizedBox(height: 16),
                   if (_errorMessage != null)
                     Container(
-                      padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      padding:
+                          EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                       decoration: BoxDecoration(
                         color: Colors.red.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
@@ -282,21 +287,21 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
         ),
         child: _isLoading
             ? SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(
-            color: Colors.white,
-            strokeWidth: 2,
-          ),
-        )
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
             : Text(
-          "Update Password",
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
-          ),
-        ),
+                "Update Password",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
       ),
     );
   }

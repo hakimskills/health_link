@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "250155480589",
+    "project_id": "healthlinkdz",
+    "storage_bucket": "healthlinkdz.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:250155480589:android:d3a5991dcf9c9bcba40744",
+        "android_client_info": {
+          "package_name": "com.example.health_link"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAzYAALkNoZY6w1TMO_ZqfEXcscLH8B6_U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

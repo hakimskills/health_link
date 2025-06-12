@@ -1,27 +1,78 @@
-import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
+
+import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:http/http.dart' as http;
 import 'package:loading_animation_widget/loading_animation_widget.dart';
+
 import 'login_screen.dart';
 import 'success_screen.dart';
 
 class RegisterScreen extends HookWidget {
   final String? selectedRole; // Made nullable to make it optional
 
-  RegisterScreen({Key? key, this.selectedRole}) : super(key: key); // No longer required
+  RegisterScreen({Key? key, this.selectedRole})
+      : super(key: key); // No longer required
 
   final List<String> _wilayas = [
-    "Adrar", "Chlef", "Laghouat", "Oum El Bouaghi", "Batna", "Béjaïa", "Biskra",
-    "Béchar", "Blida", "Bouira", "Tamanrasset", "Tébessa", "Tlemcen", "Tiaret",
-    "Tizi Ouzou", "Algiers", "Djelfa", "Jijel", "Sétif", "Saïda", "Skikda",
-    "Sidi Bel Abbès", "Annaba", "Guelma", "Constantine", "Médéa", "Mostaganem",
-    "M'Sila", "Mascara", "Ouargla", "Oran", "El Bayadh", "Illizi",
-    "Bordj Bou Arréridj", "Boumerdès", "El Tarf", "Tindouf", "Tissemsilt",
-    "El Oued", "Khenchela", "Souk Ahras", "Tipaza", "Mila", "Aïn Defla",
-    "Naâma", "Aïn Témouchent", "Ghardaïa", "Relizane", "Timimoun",
-    "Bordj Badji Mokhtar", "Ouled Djellal", "Béni Abbès", "In Salah",
-    "In Guezzam", "Touggourt", "Djanet", "El M'Ghair", "El Menia"
+    "Adrar",
+    "Chlef",
+    "Laghouat",
+    "Oum El Bouaghi",
+    "Batna",
+    "Béjaïa",
+    "Biskra",
+    "Béchar",
+    "Blida",
+    "Bouira",
+    "Tamanrasset",
+    "Tébessa",
+    "Tlemcen",
+    "Tiaret",
+    "Tizi Ouzou",
+    "Algiers",
+    "Djelfa",
+    "Jijel",
+    "Sétif",
+    "Saïda",
+    "Skikda",
+    "Sidi Bel Abbès",
+    "Annaba",
+    "Guelma",
+    "Constantine",
+    "Médéa",
+    "Mostaganem",
+    "M'Sila",
+    "Mascara",
+    "Ouargla",
+    "Oran",
+    "El Bayadh",
+    "Illizi",
+    "Bordj Bou Arréridj",
+    "Boumerdès",
+    "El Tarf",
+    "Tindouf",
+    "Tissemsilt",
+    "El Oued",
+    "Khenchela",
+    "Souk Ahras",
+    "Tipaza",
+    "Mila",
+    "Aïn Defla",
+    "Naâma",
+    "Aïn Témouchent",
+    "Ghardaïa",
+    "Relizane",
+    "Timimoun",
+    "Bordj Badji Mokhtar",
+    "Ouled Djellal",
+    "Béni Abbès",
+    "In Salah",
+    "In Guezzam",
+    "Touggourt",
+    "Djanet",
+    "El M'Ghair",
+    "El Menia"
   ];
 
   // List of available roles
@@ -65,7 +116,13 @@ class RegisterScreen extends HookWidget {
     // Steps in registration process - add role selection step if needed
     final steps = selectedRole != null
         ? ['Personal Info', 'Contact', 'Security', 'Location']
-        : ['Role Selection', 'Personal Info', 'Contact', 'Security', 'Location'];
+        : [
+            'Role Selection',
+            'Personal Info',
+            'Contact',
+            'Security',
+            'Location'
+          ];
 
     // Handle registration
     Future<void> register() async {
@@ -75,7 +132,7 @@ class RegisterScreen extends HookWidget {
 
       try {
         final response = await http.post(
-          Uri.parse("http://192.168.43.101:8000/api/register"),
+          Uri.parse("http://192.168.1.8:8000/api/register"),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             "first_name": firstNameController.text,
@@ -92,15 +149,15 @@ class RegisterScreen extends HookWidget {
         final responseData = jsonDecode(response.body);
 
         if (response.statusCode == 201) {
-          Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => SuccessScreen())
-          );
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (context) => SuccessScreen()));
         } else {
-          _showErrorDialog(context, responseData['message'] ?? "Registration failed.", primaryColor);
+          _showErrorDialog(context,
+              responseData['message'] ?? "Registration failed.", primaryColor);
         }
       } catch (e) {
-        _showErrorDialog(context, "An error occurred. Please try again.", primaryColor);
+        _showErrorDialog(
+            context, "An error occurred. Please try again.", primaryColor);
       }
 
       isLoading.value = false;
@@ -130,13 +187,15 @@ class RegisterScreen extends HookWidget {
                   decoration: BoxDecoration(
                     color: isActive ? primaryColor : Colors.grey.shade200,
                     borderRadius: BorderRadius.circular(15),
-                    boxShadow: isCurrent ? [
-                      BoxShadow(
-                        color: primaryColor.withOpacity(0.4),
-                        blurRadius: 8,
-                        offset: Offset(0, 3),
-                      )
-                    ] : null,
+                    boxShadow: isCurrent
+                        ? [
+                            BoxShadow(
+                              color: primaryColor.withOpacity(0.4),
+                              blurRadius: 8,
+                              offset: Offset(0, 3),
+                            )
+                          ]
+                        : null,
                   ),
                   child: Center(
                     child: Text(
@@ -187,8 +246,8 @@ class RegisterScreen extends HookWidget {
 
       switch (currentStep.value) {
         case 0:
-        // If role is provided, this is Personal Info step
-        // If role is not provided, this is Role Selection step
+          // If role is provided, this is Personal Info step
+          // If role is not provided, this is Role Selection step
           if (selectedRole != null) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -257,7 +316,8 @@ class RegisterScreen extends HookWidget {
                   selectedValue: roleState.value,
                   items: _roles,
                   onChanged: (value) => roleState.value = value,
-                  validator: (value) => value == null ? "Role is required" : null,
+                  validator: (value) =>
+                      value == null ? "Role is required" : null,
                   searchable: false,
                   primaryColor: primaryColor,
                 ),
@@ -293,8 +353,8 @@ class RegisterScreen extends HookWidget {
           }
 
         case 1:
-        // If role is provided, this is Contact step
-        // If role is not provided, this is Personal Info step
+          // If role is provided, this is Contact step
+          // If role is not provided, this is Personal Info step
           if (selectedRole != null) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -390,7 +450,7 @@ class RegisterScreen extends HookWidget {
           }
 
         case 2:
-        // Security or Contact based on whether role was provided
+          // Security or Contact based on whether role was provided
           if (selectedRole != null) {
             // Security
             return Column(
@@ -416,15 +476,14 @@ class RegisterScreen extends HookWidget {
                           : Icons.visibility_outlined,
                       color: primaryColor,
                     ),
-                    onPressed: () => passwordVisible.value = !passwordVisible.value,
+                    onPressed: () =>
+                        passwordVisible.value = !passwordVisible.value,
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty)
                       return "Password is required";
                     if (value.length < 8)
                       return "Password must be at least 8 characters";
-                    if (!RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)').hasMatch(value))
-                      return "Include uppercase, lowercase & numbers";
                     return null;
                   },
                 ),
@@ -442,7 +501,8 @@ class RegisterScreen extends HookWidget {
                           : Icons.visibility_outlined,
                       color: primaryColor,
                     ),
-                    onPressed: () => confirmPasswordVisible.value = !confirmPasswordVisible.value,
+                    onPressed: () => confirmPasswordVisible.value =
+                        !confirmPasswordVisible.value,
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty)
@@ -454,8 +514,7 @@ class RegisterScreen extends HookWidget {
                 ),
               ],
             );
-
-      } else {
+          } else {
             // Contact
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -501,7 +560,7 @@ class RegisterScreen extends HookWidget {
           }
 
         case 3:
-        // Location or Security based on whether role was provided
+          // Location or Security based on whether role was provided
           if (selectedRole != null) {
             // Location
             return Column(
@@ -521,7 +580,8 @@ class RegisterScreen extends HookWidget {
                   selectedValue: selectedWilaya.value,
                   items: _wilayas,
                   onChanged: (value) => selectedWilaya.value = value,
-                  validator: (value) => value == null ? "Wilaya is required" : null,
+                  validator: (value) =>
+                      value == null ? "Wilaya is required" : null,
                   searchable: true,
                   primaryColor: primaryColor,
                 ),
@@ -552,15 +612,14 @@ class RegisterScreen extends HookWidget {
                           : Icons.visibility_outlined,
                       color: primaryColor,
                     ),
-                    onPressed: () => passwordVisible.value = !passwordVisible.value,
+                    onPressed: () =>
+                        passwordVisible.value = !passwordVisible.value,
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty)
                       return "Password is required";
                     if (value.length < 8)
                       return "Password must be at least 8 characters";
-                    if (!RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)').hasMatch(value))
-                      return "Include uppercase, lowercase & numbers";
                     return null;
                   },
                 ),
@@ -578,7 +637,8 @@ class RegisterScreen extends HookWidget {
                           : Icons.visibility_outlined,
                       color: primaryColor,
                     ),
-                    onPressed: () => confirmPasswordVisible.value = !confirmPasswordVisible.value,
+                    onPressed: () => confirmPasswordVisible.value =
+                        !confirmPasswordVisible.value,
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty)
@@ -593,7 +653,7 @@ class RegisterScreen extends HookWidget {
           }
 
         case 4:
-        // This is always Location for the no-role-provided case
+          // This is always Location for the no-role-provided case
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -611,7 +671,8 @@ class RegisterScreen extends HookWidget {
                 selectedValue: selectedWilaya.value,
                 items: _wilayas,
                 onChanged: (value) => selectedWilaya.value = value,
-                validator: (value) => value == null ? "Wilaya is required" : null,
+                validator: (value) =>
+                    value == null ? "Wilaya is required" : null,
                 searchable: true,
                 primaryColor: primaryColor,
               ),
@@ -693,18 +754,18 @@ class RegisterScreen extends HookWidget {
                       onPressed: isLoading.value ? null : nextStep,
                       child: isLoading.value
                           ? LoadingAnimationWidget.threeArchedCircle(
-                        color: Colors.white,
-                        size: 30,
-                      )
+                              color: Colors.white,
+                              size: 30,
+                            )
                           : Text(
-                        currentStep.value < steps.length - 1
-                            ? "Continue"
-                            : "Register",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                              currentStep.value < steps.length - 1
+                                  ? "Continue"
+                                  : "Register",
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                     ),
                   ),
                 ),
@@ -839,7 +900,8 @@ class RegisterScreen extends HookWidget {
 }
 
 // Error dialog
-void _showErrorDialog(BuildContext context, String message, Color primaryColor) {
+void _showErrorDialog(
+    BuildContext context, String message, Color primaryColor) {
   showDialog(
     context: context,
     builder: (context) => AlertDialog(

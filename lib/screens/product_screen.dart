@@ -1,12 +1,12 @@
-import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:health_link/screens/dashboards/add_product_page.dart';
-import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
-import 'package:shimmer/shimmer.dart';
+
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:carousel_slider/carousel_slider.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:health_link/screens/dashboards/add_product_page.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shimmer/shimmer.dart';
 
 import 'edit_product_page.dart';
 
@@ -19,7 +19,8 @@ class ProductScreen extends StatefulWidget {
   _ProductScreenState createState() => _ProductScreenState();
 }
 
-class _ProductScreenState extends State<ProductScreen> with SingleTickerProviderStateMixin {
+class _ProductScreenState extends State<ProductScreen>
+    with SingleTickerProviderStateMixin {
   List<dynamic> products = [];
   List<dynamic> storeProducts = [];
   List<dynamic> inventoryProducts = [];
@@ -32,13 +33,14 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
   bool isSearching = false;
   late TabController _tabController;
   String? selectedCategory;
+  String? loggedInUserId; // Store the logged-in user's ID
+  String? storeOwnerId; // Store the store owner's ID
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _fetchProducts();
-
+    _initializeUserAndFetchData(); // Initialize user ID and fetch data
     _tabController.addListener(() {
       if (isSearching) {
         setState(() {
@@ -57,13 +59,54 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
     super.dispose();
   }
 
+  // Initialize logged-in user ID and fetch store owner ID and products
+  Future<void> _initializeUserAndFetchData() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? token = prefs.getString('auth_token');
+    setState(() {
+      loggedInUserId = prefs.getString('user_id'); // Assumes user_id is stored
+    });
+
+    // Fetch store owner's ID
+    try {
+      final response = await http.get(
+        Uri.parse('http://192.168.1.8:8000/api/store/${widget.storeId}/owner'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+      if (response.statusCode == 200) {
+        final ownerData = json.decode(response.body);
+        setState(() {
+          storeOwnerId =
+              ownerData['id'].toString(); // Adjust based on API response
+        });
+      } else {
+        print('Failed to fetch store owner: ${response.statusCode}');
+        setState(() {
+          isLoading = false;
+        });
+        return;
+      }
+    } catch (e) {
+      print('Error fetching store owner: $e');
+      setState(() {
+        isLoading = false;
+      });
+      return;
+    }
+
+    await _fetchProducts();
+  }
+
   Future<void> _fetchProducts() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? token = prefs.getString('auth_token');
 
     try {
       final response = await http.get(
-        Uri.parse('http://192.168.43.101:8000/api/products/${widget.storeId}'),
+        Uri.parse('http://192.168.1.8:8000/api/products/${widget.storeId}'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -73,14 +116,11 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
       if (response.statusCode == 200) {
         setState(() {
           products = jsonDecode(response.body);
-
-          // Split products based on type
-          storeProducts = products.where((product) =>
-          product['type'] == 'new').toList();
-
-          inventoryProducts = products.where((product) =>
-          product['type'] == 'inventory').toList();
-
+          storeProducts =
+              products.where((product) => product['type'] == 'new').toList();
+          inventoryProducts = products
+              .where((product) => product['type'] == 'inventory')
+              .toList();
           filteredStoreProducts = storeProducts;
           filteredInventoryProducts = inventoryProducts;
           isLoading = false;
@@ -103,15 +143,24 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
       });
     } else {
       setState(() {
-        filteredStoreProducts = storeProducts.where((product) =>
-        (query.isEmpty || product['product_name'].toLowerCase().contains(query.toLowerCase())) &&
-            (selectedCategory == null || product['category'] == selectedCategory)
-        ).toList();
-
-        filteredInventoryProducts = inventoryProducts.where((product) =>
-        (query.isEmpty || product['product_name'].toLowerCase().contains(query.toLowerCase())) &&
-            (selectedCategory == null || product['category'] == selectedCategory)
-        ).toList();
+        filteredStoreProducts = storeProducts
+            .where((product) =>
+                (query.isEmpty ||
+                    product['product_name']
+                        .toLowerCase()
+                        .contains(query.toLowerCase())) &&
+                (selectedCategory == null ||
+                    product['category'] == selectedCategory))
+            .toList();
+        filteredInventoryProducts = inventoryProducts
+            .where((product) =>
+                (query.isEmpty ||
+                    product['product_name']
+                        .toLowerCase()
+                        .contains(query.toLowerCase())) &&
+                (selectedCategory == null ||
+                    product['category'] == selectedCategory))
+            .toList();
       });
     }
   }
@@ -220,7 +269,8 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
                             onChanged: _filterProducts,
                             decoration: InputDecoration(
                               hintText: 'Search products...',
-                              prefixIcon: Icon(Icons.search, color: primaryColor, size: 20),
+                              prefixIcon: Icon(Icons.search,
+                                  color: primaryColor, size: 20),
                               filled: true,
                               fillColor: Colors.grey[100],
                               contentPadding: EdgeInsets.symmetric(vertical: 0),
@@ -230,16 +280,18 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: primaryColor, width: 1),
+                                borderSide:
+                                    BorderSide(color: primaryColor, width: 1),
                               ),
                               suffixIcon: _searchController.text.isNotEmpty
                                   ? IconButton(
-                                icon: Icon(Icons.clear, color: Colors.grey, size: 20),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  _filterProducts('');
-                                },
-                              )
+                                      icon: Icon(Icons.clear,
+                                          color: Colors.grey, size: 20),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        _filterProducts('');
+                                      },
+                                    )
                                   : null,
                             ),
                           ),
@@ -325,24 +377,25 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
                     child: isLoading
                         ? _buildLoadingShimmer()
                         : filteredStoreProducts.isEmpty
-                        ? _buildEmptyState(true)
-                        : RefreshIndicator(
-                      color: primaryColor,
-                      onRefresh: _fetchProducts,
-                      child: _buildProductGrid(filteredStoreProducts),
-                    ),
+                            ? _buildEmptyState(true)
+                            : RefreshIndicator(
+                                color: primaryColor,
+                                onRefresh: _initializeUserAndFetchData,
+                                child: _buildProductGrid(filteredStoreProducts),
+                              ),
                   ),
                   AnimatedSwitcher(
                     duration: Duration(milliseconds: 300),
                     child: isLoading
                         ? _buildLoadingShimmer()
                         : filteredInventoryProducts.isEmpty
-                        ? _buildEmptyState(false)
-                        : RefreshIndicator(
-                      color: primaryColor,
-                      onRefresh: _fetchProducts,
-                      child: _buildProductGrid(filteredInventoryProducts),
-                    ),
+                            ? _buildEmptyState(false)
+                            : RefreshIndicator(
+                                color: primaryColor,
+                                onRefresh: _initializeUserAndFetchData,
+                                child: _buildProductGrid(
+                                    filteredInventoryProducts),
+                              ),
                   ),
                 ],
               ),
@@ -350,33 +403,36 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: primaryColor,
-        elevation: 4,
-        icon: Icon(Icons.add, color: Colors.white),
-        label: Text(
-          "Add ${_tabController.index == 0 ? 'Store' : 'Inventory'} Product",
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        onPressed: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AddProductPage(
-                storeId: widget.storeId,
-                productType: _tabController.index == 0 ? 'new' : 'inventory',
-              ),
-            ),
-          );
-
-          if (result == true) {
-            _fetchProducts();
-          }
-        },
-      ),
+      floatingActionButton:
+          loggedInUserId != null && storeOwnerId == loggedInUserId
+              ? FloatingActionButton.extended(
+                  backgroundColor: primaryColor,
+                  elevation: 4,
+                  icon: Icon(Icons.add, color: Colors.white),
+                  label: Text(
+                    "Add ${_tabController.index == 0 ? 'Store' : 'Inventory'} Product",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onPressed: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AddProductPage(
+                          storeId: widget.storeId,
+                          productType:
+                              _tabController.index == 0 ? 'inventory' : 'new',
+                        ),
+                      ),
+                    );
+                    if (result == true) {
+                      _fetchProducts();
+                    }
+                  },
+                )
+              : null, // Hide FAB for non-owners
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
@@ -400,9 +456,12 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
     // Get the primary image or first image if available
     final images = product['images'] as List<dynamic>?;
     final primaryImage = images?.firstWhere(
-          (image) => image['is_primary'] == true,
-      orElse: () => images.isNotEmpty ? images[0] : null,
+      (image) => image['is_primary'] == true,
+      orElse: () => images != null && images.isNotEmpty ? images[0] : null,
     );
+
+    // Check if the logged-in user is the store owner
+    bool isOwner = loggedInUserId != null && storeOwnerId == loggedInUserId;
 
     return Container(
       decoration: BoxDecoration(
@@ -433,51 +492,52 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
                   children: [
                     AspectRatio(
                       aspectRatio: 1,
-                      child: images != null && images.isNotEmpty
+                      child: images != null && images.length > 0
                           ? Hero(
-                        tag: 'product-${product['product_id']}',
-                        child: CachedNetworkImage(
-                          imageUrl: primaryImage?['image_path'] ?? '',
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          placeholder: (context, url) => Container(
-                            color: Colors.grey[200],
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: primaryColor.withOpacity(0.5),
+                              tag: 'product-${product['product_id']}',
+                              child: CachedNetworkImage(
+                                imageUrl: primaryImage['image_path'] ?? '',
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                placeholder: (context, url) => Container(
+                                  color: Colors.grey[200],
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: primaryColor.withOpacity(0.5),
+                                    ),
+                                  ),
+                                ),
+                                errorWidget: (_, __, ___) => Container(
+                                  color: Colors.grey[200],
+                                  child: Icon(
+                                    isInventory
+                                        ? Icons.inventory_2_outlined
+                                        : Icons.storefront_outlined,
+                                    size: 50,
+                                    color: Colors.grey[400],
+                                  ),
+                                ),
+                              ),
+                            )
+                          : Container(
+                              color: Colors.grey[200],
+                              child: Icon(
+                                isInventory
+                                    ? Icons.inventory_2_outlined
+                                    : Icons.storefront_outlined,
+                                size: 50,
+                                color: Colors.grey[400],
                               ),
                             ),
-                          ),
-                          errorWidget: (_, __, ___) => Container(
-                            color: Colors.grey[200],
-                            child: Icon(
-                              isInventory
-                                  ? Icons.inventory_2_outlined
-                                  : Icons.storefront_outlined,
-                              size: 50,
-                              color: Colors.grey[400],
-                            ),
-                          ),
-                        ),
-                      )
-                          : Container(
-                        color: Colors.grey[200],
-                        child: Icon(
-                          isInventory
-                              ? Icons.inventory_2_outlined
-                              : Icons.storefront_outlined,
-                          size: 50,
-                          color: Colors.grey[400],
-                        ),
-                      ),
                     ),
                     if (images != null && images.length > 1)
                       Positioned(
                         bottom: 8,
                         left: 8,
                         child: Container(
-                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
                             color: Colors.black.withOpacity(0.7),
                             borderRadius: BorderRadius.circular(12),
@@ -495,7 +555,8 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
                       top: 8,
                       right: 8,
                       child: Container(
-                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
                           color: primaryColor,
                           borderRadius: BorderRadius.circular(20),
@@ -521,13 +582,19 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
                       top: 8,
                       left: 8,
                       child: Container(
-                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                          color: isInventory ? Colors.amber[700] : Colors.blue[700],
+                          color: isInventory
+                              ? Colors.amber[700]
+                              : Colors.blue[700],
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: (isInventory ? Colors.amber[700] : Colors.blue[700])!.withOpacity(0.3),
+                              color: (isInventory
+                                      ? Colors.amber[700]
+                                      : Colors.blue[700])!
+                                  .withOpacity(0.3),
                               blurRadius: 5,
                               offset: Offset(0, 2),
                             ),
@@ -537,7 +604,9 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              isInventory ? Icons.inventory_2 : Icons.storefront,
+                              isInventory
+                                  ? Icons.inventory_2
+                                  : Icons.storefront,
                               size: 12,
                               color: Colors.white,
                             ),
@@ -575,14 +644,14 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
                           ),
                         ),
                       ),
-                    if (product['stock'] != null &&
-                        product['stock'] == 0)
+                    if (product['stock'] != null && product['stock'] == 0)
                       Positioned.fill(
                         child: Container(
                           color: Colors.black.withOpacity(0.6),
                           child: Center(
                             child: Container(
-                              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 6),
                               decoration: BoxDecoration(
                                 color: Colors.red,
                                 borderRadius: BorderRadius.circular(20),
@@ -625,7 +694,8 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
                             });
                           },
                           child: Container(
-                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
                               color: Colors.grey[100],
                               borderRadius: BorderRadius.circular(12),
@@ -651,21 +721,21 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-
-                          InkWell(
-                            onTap: () {
-                              _showProductOptions(product);
-                            },
-                            customBorder: CircleBorder(),
-                            child: Padding(
-                              padding: EdgeInsets.all(4),
-                              child: Icon(
-                                Icons.more_vert,
-                                color: Colors.grey[600],
-                                size: 20,
+                          if (isOwner) // Only show options for the owner
+                            InkWell(
+                              onTap: () {
+                                _showProductOptions(product);
+                              },
+                              customBorder: CircleBorder(),
+                              child: Padding(
+                                padding: EdgeInsets.all(4),
+                                child: Icon(
+                                  Icons.more_vert,
+                                  color: Colors.grey[600],
+                                  size: 20,
+                                ),
                               ),
                             ),
-                          ),
                         ],
                       ),
                     ],
@@ -682,9 +752,12 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
   void _showProductOptions(dynamic product) {
     final images = product['images'] as List<dynamic>?;
     final primaryImage = images?.firstWhere(
-          (image) => image['is_primary'] == true,
+      (image) => image['is_primary'] == true,
       orElse: () => images?.isNotEmpty == true ? images![0] : null,
     );
+
+    // Check if the logged-in user is the store owner
+    bool isOwner = loggedInUserId != null && storeOwnerId == loggedInUserId;
 
     showModalBottomSheet(
       context: context,
@@ -719,24 +792,24 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
                   ),
                   child: primaryImage != null
                       ? ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.network(
-                      primaryImage['image_path'],
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Icon(
-                        product['type'] == 'inventory'
-                            ? Icons.inventory_2_outlined
-                            : Icons.storefront_outlined,
-                        color: Colors.grey[400],
-                      ),
-                    ),
-                  )
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.network(
+                            primaryImage['image_path'],
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Icon(
+                              product['type'] == 'inventory'
+                                  ? Icons.inventory_2_outlined
+                                  : Icons.storefront_outlined,
+                              color: Colors.grey[400],
+                            ),
+                          ),
+                        )
                       : Icon(
-                    product['type'] == 'inventory'
-                        ? Icons.inventory_2_outlined
-                        : Icons.storefront_outlined,
-                    color: Colors.grey[400],
-                  ),
+                          product['type'] == 'inventory'
+                              ? Icons.inventory_2_outlined
+                              : Icons.storefront_outlined,
+                          color: Colors.grey[400],
+                        ),
                 ),
                 SizedBox(width: 15),
                 Expanded(
@@ -780,58 +853,81 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
               ],
             ),
             Divider(height: 30),
-            _buildOptionTile(
-              icon: Icons.edit,
-              iconColor: primaryColor,
-              title: 'Edit Product',
-              subtitle: 'Update product details',
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => EditProductPage(
-                      product: product,
+            if (isOwner) ...[
+              _buildOptionTile(
+                icon: Icons.edit,
+                iconColor: primaryColor,
+                title: 'Edit Product',
+                subtitle: 'Update product details',
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EditProductPage(
+                        product: product,
+                      ),
                     ),
+                  ).then((result) {
+                    if (result == true) {
+                      _fetchProducts();
+                    }
+                  });
+                },
+              ),
+              _buildOptionTile(
+                icon: Icons.delete_outline,
+                iconColor: Colors.red,
+                title: 'Delete Product',
+                subtitle: 'Remove this product',
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _deleteProduct(product['product_id']);
+                },
+              ),
+              if (product['type'] == 'new')
+                _buildOptionTile(
+                  icon: Icons.inventory_2_outlined,
+                  iconColor: Colors.amber[700]!,
+                  title: 'Move to Inventory',
+                  subtitle: 'Change product type to inventory',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showInventoryPriceDialog(product);
+                  },
+                ),
+              if (product['type'] == 'inventory')
+                _buildOptionTile(
+                  icon: Icons.storefront_outlined,
+                  iconColor: Colors.blue[700]!,
+                  title: 'Move to Store',
+                  subtitle: 'Change product type to store',
+                  onTap: () {
+                    Navigator.pop(context);
+                    // Implement move to store logic if needed
+                  },
+                ),
+            ] else ...[
+              ListTile(
+                leading: Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                ).then((result) {
-                  if (result == true) {
-                    _fetchProducts();
-                  }
-                });
-              },
-            ),
-            _buildOptionTile(
-              icon: Icons.delete_outline,
-              iconColor: Colors.red,
-              title: 'Delete Product',
-              subtitle: 'Remove this product',
-              onTap: () async {
-                Navigator.pop(context);
-                await _deleteProduct(product['product_id']);
-              },
-            ),
-            if (product['type'] == 'new')
-              _buildOptionTile(
-                icon: Icons.inventory_2_outlined,
-                iconColor: Colors.amber[700]!,
-                title: 'Move to Inventory',
-                subtitle: 'Change product type to inventory',
-                onTap: () {
-                  Navigator.pop(context);
-                  _showInventoryPriceDialog(product);
-                },
+                  child: Icon(Icons.info, color: Colors.grey),
+                ),
+                title: Text(
+                  'View Only',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                subtitle: Text(
+                  'You cannot edit or manage this product',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+                contentPadding: EdgeInsets.symmetric(vertical: 4),
               ),
-            if (product['type'] == 'inventory')
-              _buildOptionTile(
-                icon: Icons.storefront_outlined,
-                iconColor: Colors.blue[700]!,
-                title: 'Move to Store',
-                subtitle: 'Change product type to store',
-                onTap: () {
-                  Navigator.pop(context);
-                },
-              ),
+            ],
           ],
         ),
       ),
@@ -869,24 +965,21 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
 
   Future<void> _deleteProduct(int productId) async {
     setState(() => isLoading = true);
-
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? token = prefs.getString('auth_token');
-
     try {
       final response = await http.delete(
-        Uri.parse('http://192.168.43.101:8000/api/product/$productId'),
+        Uri.parse('http://192.168.1.8:8000/api/product/$productId'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
         },
       );
-
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Product deleted successfully'),
-            backgroundColor: Color(0xFF008080),
+            backgroundColor: primaryColor,
           ),
         );
         _fetchProducts();
@@ -912,77 +1005,71 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
 
   void _showInventoryPriceDialog(dynamic product) {
     final TextEditingController priceController = TextEditingController();
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text('Set Inventory Price'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Enter the inventory price for "${product['product_name']}"',
-                style: TextStyle(fontSize: 14),
-              ),
-              SizedBox(height: 16),
-              TextField(
-                controller: priceController,
-                keyboardType: TextInputType.numberWithOptions(decimal: true),
-                decoration: InputDecoration(
-                  labelText: 'Inventory Price (DA)',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  prefixIcon: Icon(Icons.monetization_on_outlined),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Set Inventory Price'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Enter the inventory price for "${product['product_name']}"',
+              style: TextStyle(fontSize: 14),
+            ),
+            SizedBox(height: 16),
+            TextField(
+              controller: priceController,
+              keyboardType: TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: 'Inventory Price (DA)',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
+                prefixIcon: Icon(Icons.monetization_on_outlined),
               ),
-            ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            child: Text('Cancel'),
+            onPressed: () => Navigator.pop(context),
           ),
-          actions: [
-      TextButton(
-      child: Text('Cancel'),
-      onPressed: () => Navigator.pop(context),
-    ),
-    ElevatedButton(
-    style: ElevatedButton.styleFrom(
-    backgroundColor: primaryColor,
-    foregroundColor: Colors.white,
-    ),
-    child: Text('Move'),
-    onPressed: () {
-    final inputText = priceController.text.trim();
-
-    if (inputText.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text('Please enter a price')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primaryColor,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Move'),
+            onPressed: () {
+              final inputText = priceController.text.trim();
+              if (inputText.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Please enter a price')),
+                );
+                return;
+              }
+              final parsedPrice = double.tryParse(inputText);
+              if (parsedPrice == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Invalid number format')),
+                );
+                return;
+              }
+              Navigator.of(context).pop();
+              _moveToInventory(product['product_id'], parsedPrice);
+            },
+          ),
+        ],
+      ),
     );
-    return;
-    }
-
-    final parsedPrice = double.tryParse(inputText);
-    if (parsedPrice == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text('Invalid number format')),
-    );
-    return;
-    }
-
-    Navigator.of(context).pop();
-    _moveToInventory(product['product_id'], parsedPrice);
-    },
-    ),
-    ],
-    ),
-    );
-    }
+  }
 
   Future<void> _moveToInventory(int productId, double inventoryPrice) async {
     setState(() => isLoading = true);
-
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token');
-
     if (token == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -993,10 +1080,9 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
       setState(() => isLoading = false);
       return;
     }
-
     try {
       final response = await http.post(
-        Uri.parse('http://192.168.43.101:8000/api/products/stock-clearance'),
+        Uri.parse('http://192.168.1.8:8000/api/products/stock-clearance'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -1007,12 +1093,11 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
           'inventory_price': inventoryPrice,
         }),
       );
-
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Product moved to inventory successfully'),
-            backgroundColor: Color(0xFF008080),
+            backgroundColor: primaryColor,
           ),
         );
         _fetchProducts();
@@ -1107,6 +1192,9 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
   }
 
   Widget _buildEmptyState(bool isStore) {
+    // Check if the logged-in user is the store owner
+    bool isOwner = loggedInUserId != null && storeOwnerId == loggedInUserId;
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -1129,8 +1217,8 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
             isSearching
                 ? "No products match your search"
                 : isStore
-                ? "No store products available"
-                : "No inventory products available",
+                    ? "No store products available"
+                    : "No inventory products available",
             style: TextStyle(
               fontSize: 20,
               color: Colors.grey[800],
@@ -1144,8 +1232,8 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
               isSearching
                   ? "Try different keywords or remove filters"
                   : isStore
-                  ? "Add your first store product to get started with selling"
-                  : "Add your first inventory item to track your stock",
+                      ? "Add your first store product to get started with selling"
+                      : "Add your first inventory item to track your stock",
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.grey[600],
@@ -1154,7 +1242,7 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
             ),
           ),
           SizedBox(height: 32),
-          if (!isSearching)
+          if (!isSearching && isOwner) // Only show add button for owners
             ElevatedButton.icon(
               icon: Icon(isStore ? Icons.storefront : Icons.inventory_2),
               label: Text("Add ${isStore ? "Store" : "Inventory"} Product"),
@@ -1177,7 +1265,6 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
                     ),
                   ),
                 );
-
                 if (result == true) {
                   _fetchProducts();
                 }
@@ -1189,12 +1276,9 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
   }
 
   void _showFilterOptions() {
-    List<dynamic> currentProducts = _tabController.index == 0
-        ? storeProducts
-        : inventoryProducts;
-
+    List<dynamic> currentProducts =
+        _tabController.index == 0 ? storeProducts : inventoryProducts;
     List<String> categories = _getUniqueCategories(currentProducts);
-
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -1247,46 +1331,55 @@ class _ProductScreenState extends State<ProductScreen> with SingleTickerProvider
             SizedBox(height: 12),
             categories.isEmpty
                 ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  'No categories available',
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
-              ),
-            )
-                : Expanded(
-              child: SingleChildScrollView(
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: categories.map((category) {
-                    bool isSelected = selectedCategory == category;
-                    return InkWell(
-                      onTap: () => _applyFilter(category),
-                      child: Container(
-                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: isSelected ? primaryColor : Colors.grey[100],
-                          borderRadius: BorderRadius.circular(30),
-                          border: Border.all(
-                            color: isSelected ? primaryColor : Colors.grey[300]!,
-                            width: 1,
-                          ),
-                        ),
-                        child: Text(
-                          category,
-                          style: TextStyle(
-                            color: isSelected ? Colors.white : Colors.grey[800],
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                          ),
-                        ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Text(
+                        'No categories available',
+                        style: TextStyle(color: Colors.grey[600]),
                       ),
-                    );
-                  }).toList(),
-                ),
-              ),
-            ),
+                    ),
+                  )
+                : Expanded(
+                    child: SingleChildScrollView(
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: categories.map((category) {
+                          bool isSelected = selectedCategory == category;
+                          return InkWell(
+                            onTap: () => _applyFilter(category),
+                            child: Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? primaryColor
+                                    : Colors.grey[100],
+                                borderRadius: BorderRadius.circular(30),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? primaryColor
+                                      : Colors.grey[300]!,
+                                  width: 1,
+                                ),
+                              ),
+                              child: Text(
+                                category,
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.grey[800],
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
             SizedBox(height: 20),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

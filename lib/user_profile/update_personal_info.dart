@@ -1,7 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 
 class UpdatePersonalInfoScreen extends StatefulWidget {
   @override
@@ -33,7 +34,7 @@ class _UpdatePersonalInfoScreenState extends State<UpdatePersonalInfoScreen> {
 
     try {
       final response = await http.get(
-        Uri.parse("http://192.168.43.101:8000/api/user"),
+        Uri.parse("http://192.168.1.8:8000/api/user"),
         headers: {
           "Authorization": "Bearer $token",
           "Accept": "application/json",
@@ -98,7 +99,7 @@ class _UpdatePersonalInfoScreenState extends State<UpdatePersonalInfoScreen> {
 
     try {
       final nameResponse = await http.put(
-        Uri.parse("http://192.168.43.101:8000/api/user/update-name"),
+        Uri.parse("http://192.168.1.8:8000/api/user/update-name"),
         headers: {
           "Authorization": "Bearer $token",
           "Accept": "application/json",
@@ -112,7 +113,7 @@ class _UpdatePersonalInfoScreenState extends State<UpdatePersonalInfoScreen> {
       );
 
       final phoneResponse = await http.put(
-        Uri.parse("http://192.168.43.101:8000/api/user/update-phone"),
+        Uri.parse("http://192.168.1.8:8000/api/user/update-phone"),
         headers: {
           "Authorization": "Bearer $token",
           "Accept": "application/json",
@@ -125,7 +126,7 @@ class _UpdatePersonalInfoScreenState extends State<UpdatePersonalInfoScreen> {
       );
 
       final wilayaResponse = await http.put(
-        Uri.parse("http://192.168.43.101:8000/api/user/update-wilaya"),
+        Uri.parse("http://192.168.1.8:8000/api/user/update-wilaya"),
         headers: {
           "Authorization": "Bearer $token",
           "Accept": "application/json",
@@ -173,12 +174,12 @@ class _UpdatePersonalInfoScreenState extends State<UpdatePersonalInfoScreen> {
   }
 
   Widget _buildTextField(
-      TextEditingController controller,
-      String label,
-      IconData icon, {
-        bool isPassword = false,
-        TextInputType? keyboardType,
-      }) {
+    TextEditingController controller,
+    String label,
+    IconData icon, {
+    bool isPassword = false,
+    TextInputType? keyboardType,
+  }) {
     return Container(
       margin: EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
@@ -219,16 +220,16 @@ class _UpdatePersonalInfoScreenState extends State<UpdatePersonalInfoScreen> {
           contentPadding: EdgeInsets.symmetric(vertical: 16, horizontal: 16),
           suffixIcon: isPassword
               ? IconButton(
-            icon: Icon(
-              _obscurePassword ? Icons.visibility_off : Icons.visibility,
-              color: Colors.grey.shade600,
-            ),
-            onPressed: () {
-              setState(() {
-                _obscurePassword = !_obscurePassword;
-              });
-            },
-          )
+                  icon: Icon(
+                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                    color: Colors.grey.shade600,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _obscurePassword = !_obscurePassword;
+                    });
+                  },
+                )
               : null,
         ),
       ),
@@ -259,113 +260,113 @@ class _UpdatePersonalInfoScreenState extends State<UpdatePersonalInfoScreen> {
       ),
       body: _isLoading && _firstNameController.text.isEmpty
           ? Center(
-        child: CircularProgressIndicator(
-          color: Color(0xFF008080),
-        ),
-      )
+              child: CircularProgressIndicator(
+                color: Color(0xFF008080),
+              ),
+            )
           : SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(height: 8),
-                Text(
-                  "Update your profile information",
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey.shade700,
-                  ),
-                ),
-                SizedBox(height: 24),
-                _buildTextField(
-                  _firstNameController,
-                  "First Name",
-                  Icons.person_outline,
-                ),
-                _buildTextField(
-                  _lastNameController,
-                  "Last Name",
-                  Icons.person_outline,
-                ),
-                _buildTextField(
-                  _phoneController,
-                  "Phone Number",
-                  Icons.phone_outlined,
-                  keyboardType: TextInputType.phone,
-                ),
-                _buildTextField(
-                  _wilayaController,
-                  "Wilaya",
-                  Icons.location_on_outlined,
-                ),
-                _buildTextField(
-                  _passwordController,
-                  "Enter Password",
-                  Icons.lock_outline,
-                  isPassword: true,
-                ),
-                if (_errorMessage != null)
-                  Container(
-                    padding: EdgeInsets.all(12),
-                    margin: EdgeInsets.only(bottom: 20),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.red.shade200),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.error_outline, color: Colors.red),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            _errorMessage!,
-                            style: TextStyle(color: Colors.red.shade800),
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(height: 8),
+                      Text(
+                        "Update your profile information",
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                      SizedBox(height: 24),
+                      _buildTextField(
+                        _firstNameController,
+                        "First Name",
+                        Icons.person_outline,
+                      ),
+                      _buildTextField(
+                        _lastNameController,
+                        "Last Name",
+                        Icons.person_outline,
+                      ),
+                      _buildTextField(
+                        _phoneController,
+                        "Phone Number",
+                        Icons.phone_outlined,
+                        keyboardType: TextInputType.phone,
+                      ),
+                      _buildTextField(
+                        _wilayaController,
+                        "Wilaya",
+                        Icons.location_on_outlined,
+                      ),
+                      _buildTextField(
+                        _passwordController,
+                        "Enter Password",
+                        Icons.lock_outline,
+                        isPassword: true,
+                      ),
+                      if (_errorMessage != null)
+                        Container(
+                          padding: EdgeInsets.all(12),
+                          margin: EdgeInsets.only(bottom: 20),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.red.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.error_outline, color: Colors.red),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  _errorMessage!,
+                                  style: TextStyle(color: Colors.red.shade800),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                SizedBox(height: 8),
-                Container(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _updatePersonalInfo,
-                    child: _isLoading
-                        ? SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2.5,
+                      SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _updatePersonalInfo,
+                          child: _isLoading
+                              ? SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2.5,
+                                  ),
+                                )
+                              : Text(
+                                  "UPDATE",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Color(0xFF008080),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            elevation: 2,
+                          ),
+                        ),
                       ),
-                    )
-                        : Text(
-                      "UPDATE",
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF008080),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      elevation: 2,
-                    ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
-      ),
     );
   }
 }

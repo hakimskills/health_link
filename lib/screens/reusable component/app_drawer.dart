@@ -1,26 +1,33 @@
-import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../login_screen.dart';
-import 'package:http/http.dart' as http;
-import 'package:health_link/user_profile/account_settings_screen.dart';
 import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:health_link/user_profile/account_settings_screen.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../login_screen.dart';
 
 class AppDrawer extends StatefulWidget {
   @override
   _AppDrawerState createState() => _AppDrawerState();
 }
 
-class _AppDrawerState extends State<AppDrawer> with SingleTickerProviderStateMixin {
+class _AppDrawerState extends State<AppDrawer>
+    with SingleTickerProviderStateMixin {
   String userName = "Loading...";
+  String userRole = "Loading...";
+  String? profileImageUrl;
   bool isLoading = false;
+  bool isDataLoading = true;
   late AnimationController _animationController;
 
   final Color primaryColor = const Color(0xFF008080);
+  final String baseUrl = 'http://192.168.1.8:8000';
 
   @override
   void initState() {
     super.initState();
-    _loadUserName();
+    _loadUserData();
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -34,16 +41,75 @@ class _AppDrawerState extends State<AppDrawer> with SingleTickerProviderStateMix
     super.dispose();
   }
 
-  Future<void> _loadUserName() async {
+  Future<void> _loadUserData() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? token = prefs.getString('auth_token');
+    String? userId = prefs.getString('user_id');
+
+    if (token != null && userId != null) {
+      try {
+        final response = await http.get(
+          Uri.parse('$baseUrl/api/users/$userId/public'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        );
+
+        if (response.statusCode == 200) {
+          final userData = json.decode(response.body);
+          print(response.body);
+          setState(() {
+            userName = '${userData['first_name']} ${userData['last_name']}';
+            userRole = _formatRole(userData['role']);
+            profileImageUrl = userData['profile_image'];
+            print(userName);
+            print(userRole);
+            print(userName);
+            print(userName);
+
+            isDataLoading = false;
+          });
+        } else {
+          // Fallback to stored preferences if API call fails
+          await _loadUserNameFromPrefs();
+        }
+      } catch (e) {
+        print('Error loading user data: $e');
+        // Fallback to stored preferences if API call fails
+        await _loadUserNameFromPrefs();
+      }
+    } else {
+      await _loadUserNameFromPrefs();
+    }
+  }
+
+  Future<void> _loadUserNameFromPrefs() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? firstName = prefs.getString('first_name');
     String? lastName = prefs.getString('last_name');
+    String? role = prefs.getString('role');
 
     setState(() {
       userName = firstName != null && lastName != null
           ? '$firstName $lastName'
           : 'User';
+      userRole = role != null ? _formatRole(role) : 'Health Link User';
+      isDataLoading = false;
     });
+  }
+
+  String _formatRole(String role) {
+    switch (role.toLowerCase()) {
+      case 'patient':
+        return 'Patient';
+      case 'doctor':
+        return 'Doctor';
+      case 'admin':
+        return 'Administrator';
+      default:
+        return 'Health Link User';
+    }
   }
 
   Future<void> _logout(BuildContext context) async {
@@ -57,7 +123,7 @@ class _AppDrawerState extends State<AppDrawer> with SingleTickerProviderStateMix
     if (token != null) {
       try {
         final response = await http.post(
-          Uri.parse('http://192.168.43.101:8000/api/logout'),
+          Uri.parse('$baseUrl/api/logout'),
           headers: {
             'Authorization': 'Bearer $token',
             'Accept': 'application/json',
@@ -74,7 +140,8 @@ class _AppDrawerState extends State<AppDrawer> with SingleTickerProviderStateMix
           });
         }
       } catch (e) {
-        _showErrorSnackbar(context, "Network error. Please check your connection.");
+        _showErrorSnackbar(
+            context, "Network error. Please check your connection.");
         setState(() {
           isLoading = false;
         });
@@ -154,7 +221,8 @@ class _AppDrawerState extends State<AppDrawer> with SingleTickerProviderStateMix
                     Navigator.pop(context);
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => AccountSettingsScreen()),
+                      MaterialPageRoute(
+                          builder: (_) => AccountSettingsScreen()),
                     );
                   },
                 ),
@@ -218,10 +286,43 @@ class _AppDrawerState extends State<AppDrawer> with SingleTickerProviderStateMix
             child: CircleAvatar(
               radius: 32,
               backgroundColor: Colors.white,
-              child: Icon(
-                Icons.person_rounded,
-                size: 40,
-                color: primaryColor,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(32),
+                child: profileImageUrl != null
+                    ? Image.network(
+                        profileImageUrl!,
+                        width: 64,
+                        height: 64,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, _, __) => Icon(
+                          Icons.person_rounded,
+                          size: 40,
+                          color: primaryColor,
+                        ),
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            width: 64,
+                            height: 64,
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                color: primaryColor,
+                                strokeWidth: 2,
+                                value: loadingProgress.expectedTotalBytes !=
+                                        null
+                                    ? loadingProgress.cumulativeBytesLoaded /
+                                        loadingProgress.expectedTotalBytes!
+                                    : null,
+                              ),
+                            ),
+                          );
+                        },
+                      )
+                    : Icon(
+                        Icons.person_rounded,
+                        size: 40,
+                        color: primaryColor,
+                      ),
               ),
             ),
           ),
@@ -230,22 +331,40 @@ class _AppDrawerState extends State<AppDrawer> with SingleTickerProviderStateMix
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  userName,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
+                isDataLoading
+                    ? Container(
+                        height: 20,
+                        width: 120,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      )
+                    : Text(
+                        userName,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
                 const SizedBox(height: 4),
-                Text(
-                  "Health Link User",
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.white.withOpacity(0.9),
-                  ),
-                ),
+                isDataLoading
+                    ? Container(
+                        height: 14,
+                        width: 80,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      )
+                    : Text(
+                        userRole,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                      ),
               ],
             ),
           ),
@@ -317,27 +436,28 @@ class _AppDrawerState extends State<AppDrawer> with SingleTickerProviderStateMix
         ),
         child: isLoading
             ? SizedBox(
-          height: 24,
-          width: 24,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.red.shade300),
-          ),
-        )
+                height: 24,
+                width: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(Colors.red.shade300),
+                ),
+              )
             : Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.logout_rounded, size: 22),
-            const SizedBox(width: 8),
-            Text(
-              "Logout",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.logout_rounded, size: 22),
+                  const SizedBox(width: 8),
+                  Text(
+                    "Logout",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }

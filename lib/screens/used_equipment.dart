@@ -1,15 +1,13 @@
-// Add these dependencies to pubspec.yaml
-// cached_network_image: ^3.2.3
-// carousel_slider: ^4.2.1
-
-import 'package:flutter/material.dart';
-import 'package:health_link/screens/dashboards/add_used_equipment.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:developer' as developer;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carousel_slider/carousel_slider.dart';
+import 'package:flutter/material.dart';
+import 'package:health_link/screens/dashboards/add_used_equipment.dart';
+import 'package:health_link/screens/edit_product_page.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class UsedEquipmentPage extends StatefulWidget {
   final int storeId;
@@ -22,12 +20,17 @@ class UsedEquipmentPage extends StatefulWidget {
 
 class _UsedEquipmentPageState extends State<UsedEquipmentPage>
     with SingleTickerProviderStateMixin {
-  final String apiUrl = 'http://192.168.43.101:8000/api/products/';
+  final String apiUrl = 'http://192.168.1.8:8000/api/';
   List<dynamic> products = [];
-  List<dynamic> filteredProducts = []; // List for filtered products
+  List<dynamic> filteredProducts = [];
   bool isLoading = true;
   String? errorMessage;
-  String searchQuery = ''; // Store the search query
+  String searchQuery = '';
+  bool isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+  final Color primaryColor = const Color(0xFF008080);
+  String? loggedInUserId; // Store the logged-in user's ID
+  String? storeOwnerId; // Store the store owner's ID
 
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -42,26 +45,80 @@ class _UsedEquipmentPageState extends State<UsedEquipmentPage>
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
-    _fetchUsedEquipment();
+    _initializeUserAndFetchData(); // Initialize user ID and fetch data
+    _searchController.addListener(() {
+      _filterProducts(_searchController.text);
+    });
   }
 
   @override
   void dispose() {
     _animationController.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  // Initialize logged-in user ID and fetch store owner ID and equipment
+  Future<void> _initializeUserAndFetchData() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? token = prefs.getString('auth_token');
+    setState(() {
+      loggedInUserId = prefs.getString('user_id');
+      print(loggedInUserId); // Assumes user_id is stored
+    });
+
+    // Fetch store owner's ID
+    try {
+      final response = await http.get(
+        Uri.parse('${apiUrl}store/${widget.storeId}/owner'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+      if (response.statusCode == 200) {
+        final ownerData = json.decode(response.body);
+        setState(() {
+          storeOwnerId = ownerData['id'].toString();
+
+          print(storeOwnerId); // Adjust based on API response
+        });
+      } else {
+        developer.log(
+          'Failed to fetch store owner: ${response.statusCode}',
+          name: 'UsedEquipmentPage',
+          level: 900,
+        );
+        setState(() {
+          errorMessage = 'Failed to load store owner data';
+          isLoading = false;
+        });
+        return;
+      }
+    } catch (e) {
+      developer.log(
+        'Error fetching store owner: $e',
+        name: 'UsedEquipmentPage',
+        error: e,
+        level: 900,
+      );
+      setState(() {
+        errorMessage = 'Error fetching store owner: $e';
+        isLoading = false;
+      });
+      return;
+    }
+
+    await _fetchUsedEquipment();
   }
 
   Future<void> _fetchUsedEquipment() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? token = prefs.getString('auth_token');
-    final fullUrl = '$apiUrl${widget.storeId}';
+    final fullUrl = '${apiUrl}products/${widget.storeId}';
 
     developer.log('Initiating API call to fetch used equipment',
         name: 'UsedEquipmentPage', level: 600);
-    developer.log('API URL: $fullUrl', name: 'UsedEquipmentPage', level: 600);
-    developer.log('Auth token: ${token != null ? 'present' : 'missing'}',
-        name: 'UsedEquipmentPage', level: 600);
-
     try {
       final response = await http.get(
         Uri.parse(fullUrl),
@@ -70,41 +127,30 @@ class _UsedEquipmentPageState extends State<UsedEquipmentPage>
           'Accept': 'application/json',
         },
       );
-      developer.log('API response received with status code: ${response.statusCode}',
-          name: 'UsedEquipmentPage', level: 600);
-
       if (response.statusCode == 200) {
         final allProducts = json.decode(response.body);
-        developer.log('Total products received: ${allProducts.length}',
-            name: 'UsedEquipmentPage', level: 600);
-
         setState(() {
-          products = allProducts.where((product) => product['type'] == 'used_equipment').toList();
-          filteredProducts = products; // Initialize filtered list
+          products = allProducts
+              .where((product) => product['type'] == 'used_equipment')
+              .toList();
+          filteredProducts = products;
           isLoading = false;
-          developer.log('Filtered used_equipment products: ${products.length}',
-              name: 'UsedEquipmentPage', level: 600);
         });
         _animationController.forward();
       } else {
         setState(() {
-          errorMessage = 'Failed to load products: ${response.statusCode} - ${response.body}';
+          errorMessage = 'Failed to load products: ${response.statusCode}';
           isLoading = false;
-          developer.log('API error: $errorMessage',
-              name: 'UsedEquipmentPage', error: errorMessage, level: 900);
         });
       }
     } catch (e) {
       setState(() {
         errorMessage = 'Error: ${e.toString()}';
         isLoading = false;
-        developer.log('Exception caught during API call: $e',
-            name: 'UsedEquipmentPage', error: e, level: 1000);
       });
     }
   }
 
-  // Function to filter products based on search query
   void _filterProducts(String query) {
     setState(() {
       searchQuery = query;
@@ -116,180 +162,391 @@ class _UsedEquipmentPageState extends State<UsedEquipmentPage>
           return name.contains(query.toLowerCase());
         }).toList();
       }
-      developer.log('Filtered products count: ${filteredProducts.length}',
-          name: 'UsedEquipmentPage', level: 600);
     });
   }
 
-  // Function to show search dialog
-  void _showSearchDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        String tempQuery = searchQuery;
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+  Future<void> _deleteProduct(int productId) async {
+    setState(() => isLoading = true);
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? token = prefs.getString('auth_token');
+
+    try {
+      final response = await http.delete(
+        Uri.parse('${apiUrl}product/$productId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Equipment deleted successfully'),
+            backgroundColor: primaryColor,
           ),
-          title: const Text(
-            'Search Equipment',
-            style: TextStyle(
-              color: Color(0xFF1E293B),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          content: TextField(
-            autofocus: true,
-            decoration: InputDecoration(
-              hintText: 'Enter equipment name',
-              prefixIcon: const Icon(Icons.search, color: Color(0xFF008080)),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFF008080)),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFF008080), width: 2),
-              ),
-            ),
-            onChanged: (value) {
-              tempQuery = value;
-              _filterProducts(value);
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                _filterProducts('');
-                Navigator.pop(context);
-              },
-              child: const Text(
-                'Clear',
-                style: TextStyle(color: Color(0xFF008080)),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text(
-                'Done',
-                style: TextStyle(color: Color(0xFF008080)),
-              ),
-            ),
-          ],
         );
-      },
+        _fetchUsedEquipment();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete equipment: ${response.body}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  void _showProductOptions(dynamic product) {
+    final images = product['images'] as List<dynamic>?;
+    final primaryImage = images?.firstWhere(
+      (image) => image['is_primary'] == true,
+      orElse: () => images?.isNotEmpty == true ? images![0] : null,
+    );
+
+    // Check if the logged-in user is the store owner
+    bool isOwner = loggedInUserId != null && storeOwnerId == loggedInUserId;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            Row(
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: primaryImage != null
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.network(
+                            primaryImage['image_path'],
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Icon(
+                              Icons.fitness_center_outlined,
+                              color: Colors.grey[400],
+                            ),
+                          ),
+                        )
+                      : Icon(
+                          Icons.fitness_center_outlined,
+                          color: Colors.grey[400],
+                        ),
+                ),
+                SizedBox(width: 15),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        product['product_name'],
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        product['condition'] ?? 'N/A',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    "${product['price']} DA",
+                    style: TextStyle(
+                      color: primaryColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Divider(height: 30),
+            // Conditionally show edit/delete options only for the owner
+            if (isOwner) ...[
+              _buildOptionTile(
+                icon: Icons.edit,
+                iconColor: primaryColor,
+                title: 'Edit Equipment',
+                subtitle: 'Update equipment details',
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EditProductPage(product: product),
+                    ),
+                  ).then((result) {
+                    if (result == true) {
+                      _fetchUsedEquipment();
+                    }
+                  });
+                },
+              ),
+              _buildOptionTile(
+                icon: Icons.delete_outline,
+                iconColor: Colors.red,
+                title: 'Delete Equipment',
+                subtitle: 'Remove this equipment',
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _deleteProduct(product['product_id']);
+                },
+              ),
+            ] else ...[
+              ListTile(
+                leading: Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.info, color: Colors.grey),
+                ),
+                title: Text(
+                  'View Only',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                subtitle: Text(
+                  'You cannot edit or delete this equipment',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+                contentPadding: EdgeInsets.symmetric(vertical: 4),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOptionTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Container(
+        padding: EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: iconColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: iconColor),
+      ),
+      title: Text(
+        title,
+        style: TextStyle(fontWeight: FontWeight.w600),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+      ),
+      onTap: onTap,
+      contentPadding: EdgeInsets.symmetric(vertical: 4),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    developer.log('Building UsedEquipmentPage UI',
-        name: 'UsedEquipmentPage', level: 600);
-
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: Colors.grey[50],
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
             SliverAppBar(
-              expandedHeight: 120,
+              expandedHeight: 60,
               floating: true,
               pinned: true,
               elevation: 0,
               backgroundColor: Colors.white,
               leading: IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF008080)),
+                icon: Icon(Icons.arrow_back_ios_new, color: primaryColor),
                 onPressed: () => Navigator.pop(context),
+              ),
+              flexibleSpace: FlexibleSpaceBar(
+                titlePadding: EdgeInsets.only(left: 50, bottom: 16),
+                title: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      "Used ",
+                      style: TextStyle(
+                        color: Colors.black87,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      "Equipment",
+                      style: TextStyle(
+                        color: primaryColor,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.search, color: Color(0xFF008080)),
-                  onPressed: _showSearchDialog,
-                  tooltip: 'Search',
+                  icon: Icon(isSearching ? Icons.close : Icons.search,
+                      color: primaryColor),
+                  onPressed: () {
+                    setState(() {
+                      isSearching = !isSearching;
+                      if (!isSearching) {
+                        _searchController.clear();
+                        _filterProducts('');
+                      }
+                    });
+                  },
                 ),
                 IconButton(
-                  icon: const Icon(Icons.refresh_rounded, color: Color(0xFF008080)),
+                  icon: Icon(Icons.refresh_rounded, color: primaryColor),
                   onPressed: () {
                     setState(() {
                       isLoading = true;
                       errorMessage = null;
-                      searchQuery = ''; // Reset search query on refresh
-                      filteredProducts = products; // Reset filtered list
+                      searchQuery = '';
+                      filteredProducts = products;
                     });
                     _animationController.reset();
-                    _fetchUsedEquipment();
+                    _initializeUserAndFetchData();
                   },
-                  tooltip: 'Refresh',
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
               ],
+              bottom: PreferredSize(
+                preferredSize: Size.fromHeight(isSearching ? 68 : 20),
+                child: isSearching
+                    ? Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        child: SizedBox(
+                          height: 40,
+                          child: TextField(
+                            controller: _searchController,
+                            decoration: InputDecoration(
+                              hintText: 'Search equipment...',
+                              prefixIcon: Icon(Icons.search,
+                                  color: primaryColor, size: 20),
+                              filled: true,
+                              fillColor: Colors.grey[100],
+                              contentPadding: EdgeInsets.symmetric(vertical: 0),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide:
+                                    BorderSide(color: primaryColor, width: 1),
+                              ),
+                              suffixIcon: _searchController.text.isNotEmpty
+                                  ? IconButton(
+                                      icon: Icon(Icons.clear,
+                                          color: Colors.grey, size: 20),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        _filterProducts('');
+                                      },
+                                    )
+                                  : null,
+                            ),
+                          ),
+                        ),
+                      )
+                    : SizedBox(),
+              ),
             ),
           ];
         },
         body: isLoading
             ? _buildLoadingState()
             : errorMessage != null
-            ? _buildErrorState()
-            : filteredProducts.isEmpty
-            ? _buildEmptyState()
-            : _buildProductGrid(),
+                ? _buildErrorState()
+                : filteredProducts.isEmpty
+                    ? _buildEmptyState(context)
+                    : _buildProductGrid(),
       ),
-      floatingActionButton: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF008080),
-              Color(0xFF006666),
-            ],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Color(0xFF008080).withOpacity(0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: FloatingActionButton.extended(
-          onPressed: () {
-            developer.log('Add Used Equipment button pressed',
-                name: 'UsedEquipmentPage', level: 600);
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => AddUsedEquipmentPage(storeId: widget.storeId),
-              ),
-            ).then((_) {
-              developer.log('Returning to UsedEquipmentPage, refreshing products',
-                  name: 'UsedEquipmentPage', level: 600);
-              setState(() {
-                isLoading = true;
-                searchQuery = ''; // Reset search query
-                filteredProducts = products; // Reset filtered list
-              });
-              _animationController.reset();
-              _fetchUsedEquipment();
-            });
-          },
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          icon: const Icon(Icons.add_rounded, color: Colors.white, size: 24),
-          label: const Text(
-            'Add Equipment',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-              fontSize: 16,
-            ),
-          ),
-        ),
-      ),
+      floatingActionButton:
+          loggedInUserId != null && storeOwnerId == loggedInUserId
+              ? FloatingActionButton.extended(
+                  backgroundColor: primaryColor,
+                  elevation: 4,
+                  icon: Icon(Icons.add, color: Colors.white),
+                  label: Text(
+                    "Add Equipment",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            AddUsedEquipmentPage(storeId: widget.storeId),
+                      ),
+                    ).then((_) {
+                      setState(() {
+                        isLoading = true;
+                        searchQuery = '';
+                        filteredProducts = products;
+                      });
+                      _animationController.reset();
+                      _initializeUserAndFetchData();
+                    });
+                  },
+                )
+              : null, // Hide FAB for non-owners
     );
   }
 
@@ -391,20 +648,19 @@ class _UsedEquipmentPageState extends State<UsedEquipmentPage>
               ),
               child: ElevatedButton.icon(
                 onPressed: () {
-                  developer.log('Retry button pressed',
-                      name: 'UsedEquipmentPage', level: 600);
                   setState(() {
                     isLoading = true;
                     errorMessage = null;
-                    searchQuery = ''; // Reset search query
-                    filteredProducts = products; // Reset filtered list
+                    searchQuery = '';
+                    filteredProducts = products;
                   });
-                  _fetchUsedEquipment();
+                  _initializeUserAndFetchData();
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -426,62 +682,52 @@ class _UsedEquipmentPageState extends State<UsedEquipmentPage>
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(BuildContext context) {
     return FadeTransition(
       opacity: _fadeAnimation,
       child: Center(
-        child: Container(
-          margin: const EdgeInsets.all(24),
-          padding: const EdgeInsets.all(40),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: primaryColor.withOpacity(0.1),
+                shape: BoxShape.circle,
               ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF0F9FF),
-                  borderRadius: BorderRadius.circular(50),
-                ),
-                child: const Icon(
-                  Icons.inventory_2_outlined,
-                  color: Color(0xFF008080),
-                  size: 64,
-                ),
+              child: Icon(
+                Icons.fitness_center_outlined,
+                size: 60,
+                color: primaryColor,
               ),
-              const SizedBox(height: 24),
-              Text(
-                searchQuery.isEmpty ? 'No Equipment Found' : 'No Matching Equipment',
+            ),
+            SizedBox(height: 24),
+            Text(
+              isSearching
+                  ? "No equipment matches your search"
+                  : "No used equipment available",
+              style: TextStyle(
+                fontSize: 20,
+                color: Colors.grey[800],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 12),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                isSearching
+                    ? "Try different keywords"
+                    : "Add your first used equipment to get started",
                 style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.grey[800],
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                searchQuery.isEmpty
-                    ? 'Start building your inventory by adding your first piece of used equipment.'
-                    : 'No equipment matches your search. Try a different name.',
-                style: const TextStyle(
-                  color: Color(0xFF64748B),
                   fontSize: 16,
-                  height: 1.5,
+                  color: Colors.grey[600],
                 ),
                 textAlign: TextAlign.center,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -500,7 +746,7 @@ class _UsedEquipmentPageState extends State<UsedEquipmentPage>
             mainAxisSpacing: 16,
             childAspectRatio: 0.75,
           ),
-          itemCount: filteredProducts.length, // Use filteredProducts
+          itemCount: filteredProducts.length,
           itemBuilder: (context, index) {
             return AnimatedBuilder(
               animation: _animationController,
@@ -521,7 +767,7 @@ class _UsedEquipmentPageState extends State<UsedEquipmentPage>
                   position: slideAnimation,
                   child: FadeTransition(
                     opacity: _fadeAnimation,
-                    child: _buildProductCard(filteredProducts[index]), // Use filteredProducts
+                    child: _buildProductCard(filteredProducts[index]),
                   ),
                 );
               },
@@ -535,12 +781,12 @@ class _UsedEquipmentPageState extends State<UsedEquipmentPage>
   Widget _buildProductCard(dynamic product) {
     final images = product['images'] as List<dynamic>?;
     final primaryImage = images?.firstWhere(
-          (img) => img['is_primary'] == true,
+      (img) => img['is_primary'] == true,
       orElse: () => images != null && images.isNotEmpty ? images[0] : null,
     );
 
-    developer.log('Rendering product: ${product['product_name'] ?? 'Unnamed'}',
-        name: 'UsedEquipmentPage', level: 600);
+    // Check if the logged-in user is the store owner
+    bool isOwner = loggedInUserId != null && storeOwnerId == loggedInUserId;
 
     return Container(
       decoration: BoxDecoration(
@@ -571,7 +817,8 @@ class _UsedEquipmentPageState extends State<UsedEquipmentPage>
                       bottom: 8,
                       left: 8,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: Colors.black.withOpacity(0.7),
                           borderRadius: BorderRadius.circular(12),
@@ -585,7 +832,9 @@ class _UsedEquipmentPageState extends State<UsedEquipmentPage>
                         ),
                       ),
                     ),
-                  if (product['stock'] != null && product['stock'] < 5 && product['stock'] > 0)
+                  if (product['stock'] != null &&
+                      product['stock'] < 5 &&
+                      product['stock'] > 0)
                     Positioned(
                       bottom: 0,
                       left: 0,
@@ -610,7 +859,8 @@ class _UsedEquipmentPageState extends State<UsedEquipmentPage>
                         color: Colors.black.withOpacity(0.6),
                         child: Center(
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
                               color: Colors.red,
                               borderRadius: BorderRadius.circular(20),
@@ -631,13 +881,14 @@ class _UsedEquipmentPageState extends State<UsedEquipmentPage>
                     top: 12,
                     right: 12,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF008080),
+                        color: primaryColor,
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF008080).withOpacity(0.3),
+                            color: primaryColor.withOpacity(0.3),
                             blurRadius: 5,
                             offset: const Offset(0, 2),
                           ),
@@ -682,9 +933,11 @@ class _UsedEquipmentPageState extends State<UsedEquipmentPage>
                           ),
                           const SizedBox(height: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: _getConditionColor(product['condition']).withOpacity(0.15),
+                              color: _getConditionColor(product['condition'])
+                                  .withOpacity(0.15),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
@@ -698,6 +951,24 @@ class _UsedEquipmentPageState extends State<UsedEquipmentPage>
                           ),
                         ],
                       ),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        if (isOwner) // Only show options for the owner
+                          InkWell(
+                            onTap: () => _showProductOptions(product),
+                            customBorder: CircleBorder(),
+                            child: Padding(
+                              padding: EdgeInsets.all(4),
+                              child: Icon(
+                                Icons.more_vert,
+                                color: Colors.grey[600],
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ],
                 ),
@@ -775,7 +1046,7 @@ class _UsedEquipmentPageState extends State<UsedEquipmentPage>
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.image_outlined,
+            Icons.fitness_center_outlined,
             size: 40,
             color: Color(0xFF94A3B8),
           ),

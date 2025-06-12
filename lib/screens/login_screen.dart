@@ -1,18 +1,17 @@
+import 'dart:convert';
+
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:flutter_animate/flutter_animate.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import 'dart:convert';
-import 'dart:ui';
 
-import 'dashboard_screen.dart';
 import 'dashboards/admin_dashboard.dart';
 import 'dashboards/healthcare_dashboard.dart';
 import 'dashboards/supplier_dashboard.dart';
-import 'register_screen.dart';
 import 'forgot_password_screen.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends HookWidget {
   LoginScreen({Key? key}) : super(key: key);
@@ -40,6 +39,29 @@ class LoginScreen extends HookWidget {
     final primaryColor = const Color(0xFF00857C);
     final secondaryColor = const Color(0xFF232F34);
     final bgColor = const Color(0xFFF8FAFC);
+    Future<void> saveDeviceToken(String token) async {
+      final fcmToken = await FirebaseMessaging.instance.getToken();
+      if (fcmToken == null) return;
+
+      try {
+        final response = await http.post(
+          Uri.parse("http://192.168.1.8:8000/api/save-device-token"),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({'device_token': fcmToken}),
+        );
+
+        if (response.statusCode == 200) {
+          print("✅ FCM token saved to backend' " + response.body);
+        } else {
+          print("❌ Failed to save token: ${response.body}");
+        }
+      } catch (e) {
+        print("❌ Error saving device token: $e");
+      }
+    }
 
     // Login function
     Future<void> login() async {
@@ -50,7 +72,7 @@ class LoginScreen extends HookWidget {
 
       try {
         final response = await http.post(
-          Uri.parse("http://192.168.43.101:8000/api/login"),
+          Uri.parse("http://192.168.1.8:8000/api/login"),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             "email": emailController.text,
@@ -82,8 +104,13 @@ class LoginScreen extends HookWidget {
           await prefs.setString("first_name", firstName);
           await prefs.setString("last_name", lastName);
 
+          await saveDeviceToken(token); // 👈 Save FCM token to Laravel backend
+
           Widget nextScreen;
-          if (role == "Dentist" || role == "Doctor" || role == "Labo" || role == "Pharmacist") {
+          if (role == "Dentist" ||
+              role == "Doctor" ||
+              role == "Labo" ||
+              role == "Pharmacist") {
             nextScreen = HealthcareDashboard();
           } else if (role == "Supplier") {
             nextScreen = SupplierDashboard();
@@ -98,8 +125,10 @@ class LoginScreen extends HookWidget {
           Navigator.pushReplacement(
             context,
             PageRouteBuilder(
-              pageBuilder: (context, animation, secondaryAnimation) => nextScreen,
-              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              pageBuilder: (context, animation, secondaryAnimation) =>
+                  nextScreen,
+              transitionsBuilder:
+                  (context, animation, secondaryAnimation, child) {
                 return FadeTransition(opacity: animation, child: child);
               },
               transitionDuration: const Duration(milliseconds: 600),
@@ -149,39 +178,6 @@ class LoginScreen extends HookWidget {
           SafeArea(
             child: CustomScrollView(
               slivers: [
-                // App bar
-                SliverAppBar(
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  floating: true,
-                  automaticallyImplyLeading: false,
-                  flexibleSpace: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          "HealthLink",
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: primaryColor,
-                            letterSpacing: 0.5,
-                          ),
-                        ).animate().fade(
-                          duration: 600.ms,
-                          delay: 200.ms,
-                        ).slideY(
-                          begin: -1,
-                          end: 0,
-                          duration: 600.ms,
-                          delay: 200.ms,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
                 // Main content
                 SliverFillRemaining(
                   hasScrollBody: false,
@@ -192,46 +188,31 @@ class LoginScreen extends HookWidget {
                         const SizedBox(height: 10),
 
                         // Logo
+                        // Logo
+                        // Replace this section in your code (around line 180-220):
+
+// Logo with reduced spacing
                         Hero(
                           tag: 'app_logo',
-                          child: Container(
-                            height: 100,
-                            width: 100,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: primaryColor.withOpacity(0.2),
-                                  blurRadius: 20,
-                                  spreadRadius: 2,
-                                  offset: const Offset(0, 8),
-                                ),
-                              ],
-                            ),
-                            child: Center(
-                              child: ClipOval(
-                                child: Image.asset(
-                                  "assets/healthlink_logo.png",
-                                  height: 80,
-                                  width: 80,
-                                ),
-                              ),
-                            ),
+                          child: Image.asset(
+                            "assets/healthlink_logo.png",
+                            height: 200, // Reduced from 280 to 200
+                            width: 250, // Reduced from 280 to 200
+                            fit: BoxFit.cover, // Ensure proper scaling
                           ),
-                        ).animate().fade(
-                          duration: 800.ms,
-                          delay: 300.ms,
-                        ).scale(
-                          begin: const Offset(0.8, 0.8),
-                          end: const Offset(1.0, 1.0),
-                          duration: 800.ms,
-                          delay: 300.ms,
-                        ),
+                        )
+                            .animate()
+                            .fade(
+                              duration: 800.ms,
+                              delay: 300.ms,
+                            )
+                            .scale(
+                              begin: const Offset(0.8, 0.8),
+                              end: const Offset(1.0, 1.0),
+                              duration: 800.ms,
+                              delay: 300.ms,
+                            ),
 
-                        const SizedBox(height: 32),
-
-                        // Welcome text
                         Column(
                           children: [
                             Text(
@@ -252,18 +233,21 @@ class LoginScreen extends HookWidget {
                               ),
                             ),
                           ],
-                        ).animate().fade(
-                          duration: 800.ms,
-                          delay: 400.ms,
-                        ).slideY(
-                          begin: 1,
-                          end: 0,
-                          duration: 800.ms,
-                          delay: 400.ms,
-                        ),
+                        )
+                            .animate()
+                            .fade(
+                              duration: 800.ms,
+                              delay: 400.ms,
+                            )
+                            .slideY(
+                              begin: 1,
+                              end: 0,
+                              duration: 800.ms,
+                              delay: 400.ms,
+                            ),
 
-                        const SizedBox(height: 40),
-
+// You can also reduce this spacing if needed
+                        const SizedBox(height: 30), // Reduced from 40 to 30
                         // Form
                         Form(
                           key: formKey,
@@ -279,7 +263,8 @@ class LoginScreen extends HookWidget {
                                   decoration: BoxDecoration(
                                     color: Colors.red.shade50,
                                     borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: Colors.red.shade200),
+                                    border:
+                                        Border.all(color: Colors.red.shade200),
                                     boxShadow: [
                                       BoxShadow(
                                         color: Colors.red.withOpacity(0.06),
@@ -290,7 +275,8 @@ class LoginScreen extends HookWidget {
                                   ),
                                   child: Row(
                                     children: [
-                                      Icon(Icons.error_outline, color: Colors.red[700], size: 20),
+                                      Icon(Icons.error_outline,
+                                          color: Colors.red[700], size: 20),
                                       const SizedBox(width: 12),
                                       Expanded(
                                         child: Text(
@@ -304,18 +290,23 @@ class LoginScreen extends HookWidget {
                                       IconButton(
                                         padding: EdgeInsets.zero,
                                         constraints: const BoxConstraints(),
-                                        icon: Icon(Icons.close, color: Colors.red[300], size: 18),
-                                        onPressed: () => loginError.value = null,
+                                        icon: Icon(Icons.close,
+                                            color: Colors.red[300], size: 18),
+                                        onPressed: () =>
+                                            loginError.value = null,
                                       ),
                                     ],
                                   ),
-                                ).animate().fade(
-                                  duration: 400.ms,
-                                ).slideY(
-                                  begin: -0.5,
-                                  end: 0,
-                                  duration: 400.ms,
-                                ),
+                                )
+                                    .animate()
+                                    .fade(
+                                      duration: 400.ms,
+                                    )
+                                    .slideY(
+                                      begin: -0.5,
+                                      end: 0,
+                                      duration: 400.ms,
+                                    ),
 
                               // Email
                               _buildTextField(
@@ -326,19 +317,23 @@ class LoginScreen extends HookWidget {
                                 validator: (value) {
                                   if (value == null || value.isEmpty)
                                     return "Email is required";
-                                  if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value))
+                                  if (!RegExp(r'^[^@]+@[^@]+\.[^@]+')
+                                      .hasMatch(value))
                                     return "Enter a valid email";
                                   return null;
                                 },
-                              ).animate().fade(
-                                duration: 800.ms,
-                                delay: 500.ms,
-                              ).slideY(
-                                begin: 1,
-                                end: 0,
-                                duration: 800.ms,
-                                delay: 500.ms,
-                              ),
+                              )
+                                  .animate()
+                                  .fade(
+                                    duration: 800.ms,
+                                    delay: 500.ms,
+                                  )
+                                  .slideY(
+                                    begin: 1,
+                                    end: 0,
+                                    duration: 800.ms,
+                                    delay: 500.ms,
+                                  ),
 
                               const SizedBox(height: 16),
 
@@ -356,22 +351,26 @@ class LoginScreen extends HookWidget {
                                     color: primaryColor,
                                     size: 20,
                                   ),
-                                  onPressed: () => passwordVisible.value = !passwordVisible.value,
+                                  onPressed: () => passwordVisible.value =
+                                      !passwordVisible.value,
                                 ),
                                 validator: (value) {
                                   if (value == null || value.isEmpty)
                                     return "Password is required";
                                   return null;
                                 },
-                              ).animate().fade(
-                                duration: 800.ms,
-                                delay: 600.ms,
-                              ).slideY(
-                                begin: 1,
-                                end: 0,
-                                duration: 800.ms,
-                                delay: 600.ms,
-                              ),
+                              )
+                                  .animate()
+                                  .fade(
+                                    duration: 800.ms,
+                                    delay: 600.ms,
+                                  )
+                                  .slideY(
+                                    begin: 1,
+                                    end: 0,
+                                    duration: 800.ms,
+                                    delay: 600.ms,
+                                  ),
 
                               // Forgot password
                               Align(
@@ -381,25 +380,32 @@ class LoginScreen extends HookWidget {
                                     Navigator.push(
                                       context,
                                       PageRouteBuilder(
-                                        pageBuilder: (context, animation, secondaryAnimation) => ForgotPasswordScreen(),
-                                        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                                          return FadeTransition(opacity: animation, child: child);
+                                        pageBuilder: (context, animation,
+                                                secondaryAnimation) =>
+                                            ForgotPasswordScreen(),
+                                        transitionsBuilder: (context, animation,
+                                            secondaryAnimation, child) {
+                                          return FadeTransition(
+                                              opacity: animation, child: child);
                                         },
-                                        transitionDuration: const Duration(milliseconds: 400),
+                                        transitionDuration:
+                                            const Duration(milliseconds: 400),
                                       ),
                                     );
                                   },
                                   style: TextButton.styleFrom(
                                     foregroundColor: primaryColor,
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
+                                    textStyle: const TextStyle(
+                                        fontWeight: FontWeight.w600),
                                   ),
                                   child: const Text("Forgot Password?"),
                                 ),
                               ).animate().fade(
-                                duration: 800.ms,
-                                delay: 700.ms,
-                              ),
+                                    duration: 800.ms,
+                                    delay: 700.ms,
+                                  ),
                             ],
                           ),
                         ),
@@ -423,38 +429,45 @@ class LoginScreen extends HookWidget {
                             onPressed: isLoading.value ? null : login,
                             child: isLoading.value
                                 ? Container(
-                              height: 24,
-                              width: 24,
-                              child: const CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: Colors.white,
-                              ),
-                            )
+                                    height: 24,
+                                    width: 24,
+                                    child: const CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      color: Colors.white,
+                                    ),
+                                  )
                                 : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  "Sign In",
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.5,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        "Sign In",
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      const Icon(
+                                        Icons.arrow_forward_rounded,
+                                        size: 18,
+                                        color: Colors.white,
+                                      ),
+                                    ],
                                   ),
-                                ),
-                                const SizedBox(width: 8),
-                                const Icon(Icons.arrow_forward_rounded, size: 18),
-                              ],
-                            ),
                           ),
-                        ).animate().fade(
-                          duration: 800.ms,
-                          delay: 800.ms,
-                        ).slideY(
-                          begin: 1,
-                          end: 0,
-                          duration: 800.ms,
-                          delay: 800.ms,
-                        ),
+                        )
+                            .animate()
+                            .fade(
+                              duration: 800.ms,
+                              delay: 800.ms,
+                            )
+                            .slideY(
+                              begin: 1,
+                              end: 0,
+                              duration: 800.ms,
+                              delay: 800.ms,
+                            ),
 
                         const SizedBox(height: 24),
 
@@ -468,7 +481,8 @@ class LoginScreen extends HookWidget {
                               ),
                             ),
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
                               child: Text(
                                 "OR",
                                 style: TextStyle(
@@ -486,9 +500,9 @@ class LoginScreen extends HookWidget {
                             ),
                           ],
                         ).animate().fade(
-                          duration: 800.ms,
-                          delay: 900.ms,
-                        ),
+                              duration: 800.ms,
+                              delay: 900.ms,
+                            ),
 
                         const SizedBox(height: 24),
 
@@ -509,11 +523,16 @@ class LoginScreen extends HookWidget {
                               Navigator.push(
                                 context,
                                 PageRouteBuilder(
-                                  pageBuilder: (context, animation, secondaryAnimation) => RegisterScreen(),
-                                  transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                                    return FadeTransition(opacity: animation, child: child);
+                                  pageBuilder: (context, animation,
+                                          secondaryAnimation) =>
+                                      RegisterScreen(),
+                                  transitionsBuilder: (context, animation,
+                                      secondaryAnimation, child) {
+                                    return FadeTransition(
+                                        opacity: animation, child: child);
                                   },
-                                  transitionDuration: const Duration(milliseconds: 400),
+                                  transitionDuration:
+                                      const Duration(milliseconds: 400),
                                 ),
                               );
                             },
@@ -526,15 +545,18 @@ class LoginScreen extends HookWidget {
                               ),
                             ),
                           ),
-                        ).animate().fade(
-                          duration: 800.ms,
-                          delay: 1000.ms,
-                        ).slideY(
-                          begin: 1,
-                          end: 0,
-                          duration: 800.ms,
-                          delay: 1000.ms,
-                        ),
+                        )
+                            .animate()
+                            .fade(
+                              duration: 800.ms,
+                              delay: 1000.ms,
+                            )
+                            .slideY(
+                              begin: 1,
+                              end: 0,
+                              duration: 800.ms,
+                              delay: 1000.ms,
+                            ),
 
                         const Spacer(),
 
@@ -554,9 +576,9 @@ class LoginScreen extends HookWidget {
                             ],
                           ),
                         ).animate().fade(
-                          duration: 800.ms,
-                          delay: 1100.ms,
-                        ),
+                              duration: 800.ms,
+                              delay: 1100.ms,
+                            ),
                       ],
                     ),
                   ),
@@ -595,10 +617,10 @@ class LoginScreen extends HookWidget {
         ),
         prefixIcon: prefixIcon != null
             ? Icon(
-          prefixIcon,
-          size: 20,
-          color: const Color(0xFF00857C),
-        )
+                prefixIcon,
+                size: 20,
+                color: const Color(0xFF00857C),
+              )
             : null,
         suffixIcon: suffixIcon,
         border: OutlineInputBorder(
@@ -619,7 +641,8 @@ class LoginScreen extends HookWidget {
         ),
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         errorStyle: TextStyle(
           fontSize: 12,
           color: Colors.red[700],

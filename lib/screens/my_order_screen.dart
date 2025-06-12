@@ -1,12 +1,13 @@
 import 'dart:convert';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 
-import 'dashboards/healthcare_dashboard.dart';
+import 'rating_pop_up.dart'; // Add this import
 
 class MyOrderScreen extends StatefulWidget {
   const MyOrderScreen({Key? key}) : super(key: key);
@@ -15,16 +16,25 @@ class MyOrderScreen extends StatefulWidget {
   State<MyOrderScreen> createState() => _MyOrderScreenState();
 }
 
-class _MyOrderScreenState extends State<MyOrderScreen> {
+class _MyOrderScreenState extends State<MyOrderScreen>
+    with SingleTickerProviderStateMixin {
   List<dynamic> _orders = [];
   bool _isLoading = true;
   final Color primaryColor = const Color(0xFF008080);
-  final secondaryColor = const Color(0xFF232F34);
+  final Color secondaryColor = const Color(0xFF232F34);
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
     fetchBuyerOrders();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> fetchBuyerOrders() async {
@@ -32,15 +42,15 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
     final userId = prefs.getString('user_id');
     final token = prefs.getString('auth_token');
 
-    if (userId == null) {
+    if (userId == null || token == null) {
       if (mounted) {
-        _showSnackbar("User ID not found");
+        _showSnackbar("User ID or token not found");
         setState(() => _isLoading = false);
       }
       return;
     }
 
-    final url = 'http://192.168.43.101:8000/api/buyer-orders';
+    final url = 'http://192.168.1.8:8000/api/buyer-orders';
 
     try {
       final response = await http.get(
@@ -52,8 +62,8 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
       );
 
       if (response.statusCode == 200) {
+        print(response.body);
         final data = json.decode(response.body);
-
         final filteredOrders = data['orders']
             .where((order) => order['buyer_id'].toString() == userId)
             .toList();
@@ -72,6 +82,115 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
         setState(() => _isLoading = false);
         _showSnackbar("Error: $e");
       }
+    }
+  }
+
+  Future<bool> _showConfirmationDialog(String action) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            title: Text('Confirm $action'),
+            content: Text('Are you sure you want to $action this order?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child:
+                    Text('Cancel', style: TextStyle(color: Colors.grey[600])),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      action == 'Cancel' ? Colors.red : primaryColor,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+                child: Text('Confirm', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Future<void> markAsDelivered(int orderId, List<dynamic> items) async {
+    final confirmed = await _showConfirmationDialog('Mark as Delivered');
+    if (!confirmed) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await http.put(
+        Uri.parse(
+            'http://192.168.1.8:8000/api/product-orders/$orderId/deliver'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        _showSnackbar("Order marked as delivered successfully");
+        await fetchBuyerOrders();
+
+        // Show rating popup for each product in the order
+        for (var item in items) {
+          if (mounted) {
+            await RatingPopup.show(
+              context,
+              item['product']['product_id'],
+              primaryColor,
+              () {},
+            );
+          }
+        }
+      } else {
+        final errorData = json.decode(response.body);
+        throw Exception(
+            errorData['message'] ?? 'Failed to mark order as delivered');
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showSnackbar("Error: $e");
+    }
+  }
+
+  Future<void> cancelOrder(int orderId) async {
+    final confirmed = await _showConfirmationDialog('Cancel');
+    if (!confirmed) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await http.put(
+        Uri.parse('http://192.168.1.8:8000/api/product-orders/$orderId/cancel'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        _showSnackbar("Order canceled successfully");
+        await fetchBuyerOrders();
+      } else {
+        final errorData = json.decode(response.body);
+        print(errorData['message']);
+        throw Exception(errorData['message'] ?? 'Failed to cancel order');
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showSnackbar("Error: $e");
     }
   }
 
@@ -95,6 +214,18 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
       builder: (context) => OrderDetailsSheet(
         order: order,
         primaryColor: primaryColor,
+        onDeliver: order['order_status'].toLowerCase() == 'shipped'
+            ? () {
+                Navigator.pop(context);
+                markAsDelivered(order['product_order_id'], order['items']);
+              }
+            : null,
+        onCancel: order['order_status'].toLowerCase() == 'pending'
+            ? () {
+                Navigator.pop(context);
+                cancelOrder(order['product_order_id']);
+              }
+            : null,
       ),
     );
   }
@@ -144,6 +275,19 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
     }
   }
 
+  List<dynamic> _getFilteredOrders(String status) {
+    return _orders.where((order) {
+      final orderStatus = order['order_status']?.toLowerCase() ?? 'pending';
+      if (status == 'pending') {
+        return orderStatus == 'pending';
+      } else if (status == 'active') {
+        return orderStatus == 'processing' || orderStatus == 'shipped';
+      } else {
+        return orderStatus == 'delivered' || orderStatus == 'cancelled';
+      }
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -155,7 +299,7 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
           text: TextSpan(
             children: [
               TextSpan(
-                text: "Health",
+                text: "My",
                 style: TextStyle(
                   color: secondaryColor,
                   fontSize: 22,
@@ -164,7 +308,7 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
                 ),
               ),
               TextSpan(
-                text: "Link",
+                text: " Orders",
                 style: TextStyle(
                   color: primaryColor,
                   fontSize: 22,
@@ -174,6 +318,17 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
               ),
             ],
           ),
+        ),
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: primaryColor,
+          unselectedLabelColor: Colors.grey,
+          indicatorColor: primaryColor,
+          tabs: const [
+            Tab(text: "Pending"),
+            Tab(text: "Active"),
+            Tab(text: "Completed"),
+          ],
         ),
         actions: [
           IconButton(
@@ -190,32 +345,24 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
                   ),
                 ],
               ),
-
+              child: Icon(Icons.refresh, color: primaryColor),
             ),
-            onPressed: () {
-              // Handle notifications
-            },
+            onPressed: fetchBuyerOrders,
           ),
           const SizedBox(width: 8),
         ],
         iconTheme: IconThemeData(color: primaryColor),
-
       ),
       body: _isLoading
           ? _buildLoadingState()
-          : _orders.isEmpty
-          ? _buildEmptyState()
-          : RefreshIndicator(
-        color: primaryColor,
-        onRefresh: fetchBuyerOrders,
-        child: ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: _orders.length,
-          itemBuilder: (context, index) {
-            return _buildOrderCard(_orders[index]);
-          },
-        ),
-      ),
+          : TabBarView(
+              controller: _tabController,
+              children: [
+                _buildOrdersList('pending'),
+                _buildOrdersList('active'),
+                _buildOrdersList('completed'),
+              ],
+            ),
     );
   }
 
@@ -228,26 +375,48 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
         itemCount: 3,
         itemBuilder: (_, __) => Card(
           margin: const EdgeInsets.only(bottom: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: Container(height: 200),
         ),
       ),
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(String status) {
+    String message;
+    IconData icon;
+
+    switch (status) {
+      case 'pending':
+        message = "No pending orders";
+        icon = Icons.hourglass_empty;
+        break;
+      case 'active':
+        message = "No active orders";
+        icon = Icons.sync;
+        break;
+      case 'completed':
+        message = "No completed orders";
+        icon = Icons.check_circle_outline;
+        break;
+      default:
+        message = "No orders found";
+        icon = Icons.shopping_bag_outlined;
+    }
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.shopping_bag_outlined,
+            icon,
             size: 80,
             color: primaryColor.withOpacity(0.5),
           ),
           const SizedBox(height: 16),
           Text(
-            "No orders found",
+            message,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -256,27 +425,32 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            "Your order history will appear here",
+            "Your orders will appear here",
             style: TextStyle(
               color: Colors.grey[600],
             ),
           ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () {
-              // Navigate to shop page
-              // Navigator.of(context).push(MaterialPageRoute(builder: (_) => ShopScreen()));
-            },
-            icon: const Icon(Icons.shopping_cart_outlined),
-            label: const Text("Start Shopping"),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primaryColor,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-            ),
-          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildOrdersList(String status) {
+    final filteredOrders = _getFilteredOrders(status);
+
+    if (filteredOrders.isEmpty) {
+      return _buildEmptyState(status);
+    }
+
+    return RefreshIndicator(
+      color: primaryColor,
+      onRefresh: fetchBuyerOrders,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: filteredOrders.length,
+        itemBuilder: (context, index) {
+          return _buildOrderCard(filteredOrders[index]);
+        },
       ),
     );
   }
@@ -288,6 +462,21 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
     final totalItems = items.length;
     final firstItem = items.isNotEmpty ? items[0] : null;
     final firstProduct = firstItem != null ? firstItem['product'] : null;
+    final isShipped = status.toLowerCase() == 'shipped';
+    final isPending = status.toLowerCase() == 'pending';
+
+    String? getProductImageUrl(dynamic product) {
+      if (product == null) return null;
+      final images = product['images'] as List<dynamic>?;
+      if (images != null && images.isNotEmpty) {
+        final primaryImage = images.firstWhere(
+          (img) => img['is_primary'] == true,
+          orElse: () => images[0],
+        );
+        return primaryImage['image_path'];
+      }
+      return product['image'];
+    }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -300,7 +489,6 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Status header
             Container(
               decoration: BoxDecoration(
                 color: getStatusColor(status).withOpacity(0.1),
@@ -326,18 +514,41 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
                     ),
                   ),
                   const Spacer(),
-
+                  if (isShipped)
+                    OutlinedButton.icon(
+                      onPressed: () => markAsDelivered(
+                          order['product_order_id'], order['items']),
+                      icon: const Icon(Icons.check_circle,
+                          size: 16, color: Color(0xFF008080)),
+                      label: const Text("Mark Delivered"),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Color(0xFF008080),
+                        side: const BorderSide(color: Color(0xFF008080)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 0),
+                      ),
+                    ),
+                  if (isPending)
+                    OutlinedButton.icon(
+                      onPressed: () => cancelOrder(order['product_order_id']),
+                      icon:
+                          const Icon(Icons.cancel, size: 16, color: Colors.red),
+                      label: const Text("Cancel"),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(color: Colors.red),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 0),
+                      ),
+                    ),
                 ],
               ),
             ),
-
-            // Order preview
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Seller info
                   if (seller != null)
                     Row(
                       children: [
@@ -345,7 +556,7 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
                           backgroundColor: primaryColor.withOpacity(0.2),
                           radius: 20,
                           child: Text(
-                            (seller['first_name'] ?? 'S')[0].toUpperCase(),
+                            (seller['title'] ?? 'S')[0].toUpperCase(),
                             style: TextStyle(
                               color: primaryColor,
                               fontWeight: FontWeight.bold,
@@ -364,7 +575,7 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
                               ),
                             ),
                             Text(
-                              "${seller['first_name'] ?? ''} ${seller['last_name'] ?? ''}",
+                              "${seller['title'] ?? ''}",
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                               ),
@@ -381,16 +592,14 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
                         ),
                       ],
                     ),
-
                   const SizedBox(height: 16),
-
-                  // Product preview
                   if (firstProduct != null)
                     Row(
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          child: _buildProductImage(firstProduct['image']),
+                          child: _buildProductImage(
+                              getProductImageUrl(firstProduct)),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -398,7 +607,8 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                firstProduct['product_name'] ?? 'Unnamed Product',
+                                firstProduct['product_name'] ??
+                                    'Unnamed Product',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w600,
                                   fontSize: 15,
@@ -431,8 +641,6 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
                 ],
               ),
             ),
-
-            // Action footer
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Row(
@@ -441,7 +649,8 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
                   if (order['estimated_delivery'] != null)
                     Row(
                       children: [
-                        Icon(Icons.calendar_today_outlined, size: 14, color: Colors.grey[600]),
+                        Icon(Icons.calendar_today_outlined,
+                            size: 14, color: Colors.grey[600]),
                         const SizedBox(width: 4),
                         Text(
                           "Est. Delivery: ${formatDate(order['estimated_delivery'])}",
@@ -459,7 +668,8 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
                     label: const Text("Details"),
                     style: TextButton.styleFrom(
                       foregroundColor: primaryColor,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 4),
                     ),
                   ),
                 ],
@@ -477,38 +687,39 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
       height: 60,
       child: imageUrl != null && imageUrl.isNotEmpty
           ? CachedNetworkImage(
-        imageUrl: imageUrl,
-        fit: BoxFit.cover,
-        placeholder: (context, url) => Container(
-          color: Colors.grey[200],
-          child: const Center(
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF008080)),
-            ),
-          ),
-        ),
-        errorWidget: (context, url, error) => Container(
-          color: primaryColor.withOpacity(0.1),
-          child: Center(
-            child: Icon(
-              Icons.shopping_bag,
-              color: primaryColor,
-              size: 28,
-            ),
-          ),
-        ),
-      )
+              imageUrl: imageUrl,
+              fit: BoxFit.cover,
+              placeholder: (context, url) => Container(
+                color: Colors.grey[200],
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(Color(0xFF008080)),
+                  ),
+                ),
+              ),
+              errorWidget: (context, url, error) => Container(
+                color: primaryColor.withOpacity(0.1),
+                child: Center(
+                  child: Icon(
+                    Icons.shopping_bag,
+                    color: primaryColor,
+                    size: 28,
+                  ),
+                ),
+              ),
+            )
           : Container(
-        color: primaryColor.withOpacity(0.1),
-        child: Center(
-          child: Icon(
-            Icons.shopping_bag,
-            color: primaryColor,
-            size: 28,
-          ),
-        ),
-      ),
+              color: primaryColor.withOpacity(0.1),
+              child: Center(
+                child: Icon(
+                  Icons.shopping_bag,
+                  color: primaryColor,
+                  size: 28,
+                ),
+              ),
+            ),
     );
   }
 }
@@ -516,11 +727,15 @@ class _MyOrderScreenState extends State<MyOrderScreen> {
 class OrderDetailsSheet extends StatelessWidget {
   final dynamic order;
   final Color primaryColor;
+  final VoidCallback? onDeliver;
+  final VoidCallback? onCancel;
 
   const OrderDetailsSheet({
     Key? key,
     required this.order,
     required this.primaryColor,
+    this.onDeliver,
+    this.onCancel,
   }) : super(key: key);
 
   String formatDate(String? dateString) {
@@ -544,6 +759,7 @@ class OrderDetailsSheet extends StatelessWidget {
         return Colors.blue;
       case 'processing':
         return Colors.orange;
+
       case 'cancelled':
         return Colors.red;
       case 'pending':
@@ -603,7 +819,9 @@ class OrderDetailsSheet extends StatelessWidget {
                             steps[index].capitalize(),
                             style: TextStyle(
                               fontSize: 12,
-                              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                              fontWeight: isActive
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
                               color: isActive ? primaryColor : Colors.grey,
                             ),
                           ),
@@ -614,7 +832,9 @@ class OrderDetailsSheet extends StatelessWidget {
                       Expanded(
                         child: Container(
                           height: 2,
-                          color: index < currentIndex ? primaryColor : Colors.grey[300],
+                          color: index < currentIndex
+                              ? primaryColor
+                              : Colors.grey[300],
                         ),
                       ),
                   ],
@@ -640,202 +860,6 @@ class OrderDetailsSheet extends StatelessWidget {
       default:
         return Icons.circle;
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final status = order['order_status'] ?? 'Pending';
-    final seller = order['seller'];
-    final items = order['items'];
-    final total = order['total_amount'] ?? 0.0;
-    final formattedTotal = total is String ? total : '\$${total.toStringAsFixed(2)}';
-
-    return DraggableScrollableSheet(
-      initialChildSize: 0.9,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      builder: (_, scrollController) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            children: [
-              // Drag handle
-              Container(
-                margin: const EdgeInsets.only(top: 12, bottom: 8),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-
-              // Header
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                child: Row(
-                  children: [
-
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: getStatusColor(status).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Text(
-                        status,
-                        style: TextStyle(
-                          color: getStatusColor(status),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Order progress tracker
-              _buildOrderProgress(status.toLowerCase()),
-
-              // Order details
-              Expanded(
-                child: ListView(
-                  controller: scrollController,
-                  padding: const EdgeInsets.all(20),
-                  children: [
-                    // Order summary
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey[200]!),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Order Summary",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey[800],
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          _buildInfoRow("Order Date", formatDate(order['created_at'])),
-                          if (order['estimated_delivery'] != null)
-                            _buildInfoRow("Est. Delivery", formatDate(order['estimated_delivery'])),
-                          if (order['delivery_address'] != null)
-                            _buildInfoRow("Delivery Address", order['delivery_address']),
-                          _buildInfoRow("Total Amount", formattedTotal),
-                          _buildInfoRow("Payment Method", order['payment_method'] ?? "Not specified"),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Seller info
-                    if (seller != null) ...[
-                      Text(
-                        "Seller",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey[800],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey[200]!),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 5),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              backgroundColor: primaryColor.withOpacity(0.2),
-                              radius: 25,
-                              child: Text(
-                                (seller['first_name'] ?? 'S')[0].toUpperCase(),
-                                style: TextStyle(
-                                  color: primaryColor,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 18,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    "${seller['first_name'] ?? ''} ${seller['last_name'] ?? ''}",
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-
-                                ],
-                              ),
-
-
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-
-                    const SizedBox(height: 24),
-
-                    // Products list
-                    Text(
-                      "Products (${items.length})",
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[800],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    ...items.map<Widget>((item) {
-                      final product = item['product'];
-                      return ProductDetailsCard(
-                        product: product,
-                        quantity: item['quantity'],
-                        primaryColor: primaryColor,
-                      );
-                    }).toList(),
-
-                    const SizedBox(height: 32),
-
-                    // Action buttons
-
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   Widget _buildInfoRow(String label, String value) {
@@ -875,199 +899,332 @@ class OrderDetailsSheet extends StatelessWidget {
       ),
     );
   }
+
+  @override
+  Widget build(BuildContext context) {
+    final status = order['order_status'] ?? 'Pending';
+    final seller = order['seller'];
+    final items = order['items'];
+    final total = order['total_amount'] ?? 0.0;
+    final formattedTotal =
+        total is String ? total : '${total.toStringAsFixed(2)} DA';
+    final isShipped = status.toLowerCase() == 'shipped';
+    final isPending = status.toLowerCase() == 'pending';
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.9,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder: (_, scrollController) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 12, bottom: 8),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: Row(
+                  children: [
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: getStatusColor(status).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(
+                        status,
+                        style: TextStyle(
+                          color: getStatusColor(status),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _buildOrderProgress(status.toLowerCase()),
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey[200]!),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Order Summary",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _buildInfoRow(
+                              "Order Date", formatDate(order['created_at'])),
+                          if (order['estimated_delivery'] != null)
+                            _buildInfoRow("Est. Delivery",
+                                formatDate(order['estimated_delivery'])),
+                          if (order['delivery_address'] != null)
+                            _buildInfoRow(
+                                "Delivery Address", order['delivery_address']),
+                          _buildInfoRow("Total Amount", formattedTotal),
+                          _buildInfoRow("Payment Method",
+                              order['payment_method'] ?? "Not specified"),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    if (seller != null) ...[
+                      Text(
+                        "Seller",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey[200]!),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, 5),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: primaryColor.withOpacity(0.2),
+                              radius: 25,
+                              child: Text(
+                                (seller['title'] ?? 'S')[0].toUpperCase(),
+                                style: TextStyle(
+                                  color: primaryColor,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "${seller['title'] ?? ''}",
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  if (seller['email'] != null)
+                                    Text(
+                                      seller['email'],
+                                      style: TextStyle(
+                                        color: Colors.grey[700],
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  if (seller['phone'] != null)
+                                    Text(
+                                      seller['phone'],
+                                      style: TextStyle(
+                                        color: Colors.grey[700],
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 24),
+                    Text(
+                      "Products (${items.length})",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ...items.map<Widget>((item) {
+                      final product = item['product'];
+                      return ProductDetailsCard(
+                        product: product,
+                        quantity: item['quantity'],
+                        primaryColor: primaryColor,
+                      );
+                    }).toList(),
+                    const SizedBox(height: 32),
+                    if (isShipped || isPending)
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          if (isShipped && onDeliver != null)
+                            ElevatedButton.icon(
+                              onPressed: onDeliver,
+                              icon: const Icon(Icons.check_circle_outline,
+                                  color: Colors.white),
+                              label: const Text("Mark as Delivered"),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Color(0xFF008080),
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size(160, 48),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                elevation: 2,
+                              ),
+                            ),
+                          if (isPending && onCancel != null)
+                            ElevatedButton.icon(
+                              onPressed: onCancel,
+                              icon: const Icon(Icons.cancel_outlined,
+                                  color: Colors.white),
+                              label: const Text("Cancel Order"),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size(160, 48),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                elevation: 2,
+                              ),
+                            ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
-class ProductDetailsCard extends StatefulWidget {
+class ProductDetailsCard extends StatelessWidget {
   final dynamic product;
   final int quantity;
   final Color primaryColor;
 
-
   const ProductDetailsCard({
     Key? key,
     required this.product,
-
     required this.quantity,
     required this.primaryColor,
   }) : super(key: key);
 
   @override
-  State<ProductDetailsCard> createState() => _ProductDetailsCardState();
-}
-
-class _ProductDetailsCardState extends State<ProductDetailsCard> {
-  bool _isExpanded = false;
-
-  void _toggleExpanded() {
-    setState(() {
-      _isExpanded = !_isExpanded;
-    });
-  }
-  @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 1,
-      shadowColor: Colors.black.withOpacity(0.05),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        onTap: _toggleExpanded,
-        borderRadius: BorderRadius.circular(12),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: _buildProductImage(widget.product['image']),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.product != null ? (widget.product['product_name'] ?? 'Unnamed Product') : 'N/A',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Text(
-                              widget.product != null ?
-                              (widget.product['price'] != null ?
-                              '\$${widget.product['price']}' : 'Price not available') :
-                              'N/A',
-                              style: TextStyle(
-                                color: widget.primaryColor,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: widget.primaryColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                "Qty: ${widget.quantity}",
-                                style: TextStyle(
-                                  color: widget.primaryColor,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      _isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                      color: Colors.grey[600],
-                    ),
-                    onPressed: _toggleExpanded,
-                  ),
-                ],
-              ),
-            ),
-            if (_isExpanded)
-              Container(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Divider(),
-                    const SizedBox(height: 8),
-                    if (widget.product['description'] != null) ...[
-                      Text(
-                        "Description",
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey[800],
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        widget.product['description'],
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-
-                    // Additional product details
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        if (widget.product['category'] != null)
-                          _buildProductDetailChip(
-                            "Category",
-                            widget.product['category'],
-                            Icons.category_outlined,
-                          ),
-                        if (widget.product['brand'] != null)
-                          _buildProductDetailChip(
-                            "Brand",
-                            widget.product['brand'],
-                            Icons.branding_watermark_outlined,
-                          ),
-                        if (widget.product['weight'] != null)
-                          _buildProductDetailChip(
-                            "Weight",
-                            widget.product['weight'].toString(),
-                            Icons.fitness_center_outlined,
-                          ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Action buttons
-
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
+    final images = product['images'] as List<dynamic>?;
+    final primaryImage = images?.firstWhere(
+      (image) => image['is_primary'] == true,
+      orElse: () => images?.isNotEmpty == true ? images![0] : null,
     );
-  }
 
-  Widget _buildProductDetailChip(String label, String value, IconData icon) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[300]!),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 5,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            icon,
-            size: 14,
-            color: Colors.grey[600],
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: _buildProductImage(primaryImage?['image_path']),
           ),
-          const SizedBox(width: 4),
-          Text(
-            "$label: $value",
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[800],
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  product['product_name'] ?? 'Unnamed Product',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                if (product['category'] != null)
+                  Text(
+                    product['category'],
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
+                  ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "Qty: $quantity",
+                      style: TextStyle(
+                        color: Colors.grey[700],
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      "${product['price'] ?? '0.00'} DA",
+                      style: TextStyle(
+                        color: primaryColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
@@ -1081,43 +1238,43 @@ class _ProductDetailsCardState extends State<ProductDetailsCard> {
       height: 80,
       child: imageUrl != null && imageUrl.isNotEmpty
           ? CachedNetworkImage(
-        imageUrl: imageUrl,
-        fit: BoxFit.cover,
-        placeholder: (context, url) => Container(
-          color: Colors.grey[200],
-          child: const Center(
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF008080)),
-            ),
-          ),
-        ),
-        errorWidget: (context, url, error) => Container(
-          color: widget.primaryColor.withOpacity(0.1),
-          child: Center(
-            child: Icon(
-              Icons.image_not_supported_outlined,
-              color: widget.primaryColor,
-              size: 30,
-            ),
-          ),
-        ),
-      )
+              imageUrl: imageUrl,
+              fit: BoxFit.cover,
+              placeholder: (context, url) => Container(
+                color: Colors.grey[200],
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(Color(0xFF008080)),
+                  ),
+                ),
+              ),
+              errorWidget: (context, url, error) => Container(
+                color: primaryColor.withOpacity(0.1),
+                child: Center(
+                  child: Icon(
+                    Icons.shopping_bag,
+                    color: primaryColor,
+                    size: 40,
+                  ),
+                ),
+              ),
+            )
           : Container(
-        color: widget.primaryColor.withOpacity(0.1),
-        child: Center(
-          child: Icon(
-            Icons.shopping_bag,
-            color: widget.primaryColor,
-            size: 30,
-          ),
-        ),
-      ),
+              color: primaryColor.withOpacity(0.1),
+              child: Center(
+                child: Icon(
+                  Icons.shopping_bag,
+                  color: primaryColor,
+                  size: 40,
+                ),
+              ),
+            ),
     );
   }
 }
 
-// Extension to capitalize first letter of string
 extension StringExtension on String {
   String capitalize() {
     return "${this[0].toUpperCase()}${substring(1)}";

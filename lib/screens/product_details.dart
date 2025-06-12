@@ -1,15 +1,18 @@
-import 'package:flutter/material.dart';
-import 'package:health_link/screens/dashboards/healthcare_dashboard.dart';
-import 'package:health_link/screens/store_screen.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:health_link/screens/order_checkout_page.dart';
+
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:carousel_slider/carousel_slider.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:health_link/screens/order_checkout_page.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:flutter/services.dart';
-import 'package:carousel_slider/carousel_slider.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
+
+import '../user_profile/profile_screen.dart';
+import 'cart_manager.dart';
+// Import ProfileScreen
 
 class ProductDetailsPage extends StatefulWidget {
   final dynamic product;
@@ -24,11 +27,10 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
   bool _isLoading = true;
   Map<String, dynamic> _productDetails = {};
   int _quantity = 1;
-  String? _userRole; // Store user role
+  String? _userRole;
+  String? _ownerUserId; // Store the owner's userId
   final ScrollController _scrollController = ScrollController();
   bool _showTitle = false;
-
-  // Controller for the image carousel
   final CarouselController _carouselController = CarouselController();
   int _currentImageIndex = 0;
 
@@ -65,10 +67,12 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
 
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? token = prefs.getString('auth_token');
-    String? role = prefs.getString('user_role'); // Fetch user role
+    String? role = prefs.getString('user_role');
 
     try {
-      final url = Uri.parse('http://192.168.43.101:8000/api/product/${widget.product}');
+      // Fetch product details
+      final url =
+          Uri.parse('http://192.168.1.8:8000/api/product/${widget.product}');
       final response = await http.get(
         url,
         headers: {
@@ -81,13 +85,47 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
         final decoded = json.decode(response.body);
         setState(() {
           _productDetails = decoded;
-          _userRole = role; // Set user role
-          _isLoading = false;
+          _userRole = role;
         });
+
+        // Fetch store owner's userId if store_id exists
+        if (_productDetails['store_id'] != null) {
+          try {
+            final ownerResponse = await http.get(
+              Uri.parse(
+                  'http://192.168.1.8:8000/api/store/${_productDetails['store_id']}/owner'),
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Accept': 'application/json',
+              },
+            );
+
+            if (ownerResponse.statusCode == 200) {
+              final ownerData = json.decode(ownerResponse.body);
+              setState(() {
+                _ownerUserId =
+                    ownerData['id'].toString(); // Adjust if field is different
+              });
+            } else {
+              print('Failed to fetch store owner: ${ownerResponse.body}');
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Failed to load store owner information'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          } catch (e) {
+            print('Error fetching store owner: $e');
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error fetching store owner'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
       } else {
-        setState(() {
-          _isLoading = false;
-        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to load product details'),
@@ -96,15 +134,16 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
         );
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error: ${e.toString()}'),
+          content: Text('Error: $e'),
           backgroundColor: Colors.red,
         ),
       );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -131,16 +170,35 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
     }
   }
 
-  void _addToCart() {
+  void _addToCart() async {
+    final cartItem = {
+      'product_id': _productDetails['product_id'],
+      'quantity': _quantity,
+      'product_name': _productDetails['product_name'],
+      'price': _productDetails['type'] == 'inventory'
+          ? _productDetails['inventory_price']
+          : _productDetails['price'],
+      'image': _primaryImagePath,
+    };
+
+    await CartManager.addToCart(cartItem);
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Added to cart: ${_productDetails['product_name']} x $_quantity'),
+        content: Text(
+            'Added to cart: ${_productDetails['product_name']} x $_quantity'),
         backgroundColor: Color(0xFF008080),
         action: SnackBarAction(
           label: 'VIEW CART',
           textColor: Colors.white,
-          onPressed: () {
-            // Navigate to cart
+          onPressed: () async {
+            final cartItems = await CartManager.getCartItems();
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => OrderCheckoutPage(cartItems: cartItems),
+              ),
+            );
           },
         ),
       ),
@@ -159,19 +217,18 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
     );
   }
 
-  // Get product images or return an empty list if not available
   List<dynamic> get _productImages {
-    if (_productDetails.containsKey('images') && _productDetails['images'] is List) {
+    if (_productDetails.containsKey('images') &&
+        _productDetails['images'] is List) {
       return _productDetails['images'];
     }
     return [];
   }
 
-  // Get primary image path or first image path or null
   String? get _primaryImagePath {
     if (_productImages.isNotEmpty) {
       final primaryImage = _productImages.firstWhere(
-            (img) => img['is_primary'] == true,
+        (img) => img['is_primary'] == true,
         orElse: () => _productImages.first,
       );
       return primaryImage['image_path'];
@@ -200,13 +257,13 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
         ),
         title: _showTitle
             ? Text(
-          _productDetails['product_name'] ?? 'Product Details',
-          style: TextStyle(
-            color: Colors.black87,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        )
+                _productDetails['product_name'] ?? 'Product Details',
+                style: TextStyle(
+                  color: Colors.black87,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              )
             : null,
         actions: [
           IconButton(
@@ -218,69 +275,399 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
               // Implement share functionality
             },
           ),
-          IconButton(
-            icon: Icon(
-              Icons.favorite_border,
-              color: _showTitle ? Color(0xFF008080) : Colors.white,
-            ),
-            onPressed: () {
-              // Implement favorite functionality
-            },
-          ),
         ],
         systemOverlayStyle: SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
-          statusBarIconBrightness: _showTitle ? Brightness.dark : Brightness.light,
+          statusBarIconBrightness:
+              _showTitle ? Brightness.dark : Brightness.light,
         ),
       ),
       body: _isLoading
           ? _buildLoadingShimmer()
           : CustomScrollView(
-        controller: _scrollController,
-        slivers: [
-          // Product Image Gallery
-          SliverAppBar(
-            expandedHeight: MediaQuery.of(context).size.height * 0.4,
-            automaticallyImplyLeading: false,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Stack(
-                children: [
-                  _buildImageGallery(),
-                  // Discount badge for inventory items
-                  if (_productDetails['type'] == 'inventory' &&
-                      _productDetails['price'] != null &&
-                      _productDetails['inventory_price'] != null)
-                    Positioned(
-                      top: 20,
-                      right: 20,
-                      child: Container(
-                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          borderRadius: BorderRadius.circular(20),
+              controller: _scrollController,
+              slivers: [
+                SliverAppBar(
+                  expandedHeight: MediaQuery.of(context).size.height * 0.4,
+                  automaticallyImplyLeading: false,
+                  flexibleSpace: FlexibleSpaceBar(
+                    background: Stack(
+                      children: [
+                        _buildImageGallery(),
+                        if (_productDetails['type'] == 'inventory' &&
+                            _productDetails['price'] != null &&
+                            _productDetails['inventory_price'] != null)
+                          Positioned(
+                            top: 20,
+                            right: 20,
+                            child: Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                'Stock sale',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Container(
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(24)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: Offset(0, -5),
                         ),
-                        child: Text(
-                          'Stock sale',
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_productImages.length > 1)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 16.0),
+                            child: Center(
+                              child: AnimatedSmoothIndicator(
+                                activeIndex: _currentImageIndex,
+                                count: _productImages.length,
+                                effect: WormEffect(
+                                  dotHeight: 8,
+                                  dotWidth: 8,
+                                  activeDotColor: Color(0xFF008080),
+                                  dotColor: Colors.grey[300]!,
+                                ),
+                              ),
+                            ),
+                          ),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _productDetails['product_name'] ??
+                                        'Product Name',
+                                    style: TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  if (_productDetails['category'] != null)
+                                    Container(
+                                      padding: EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 5),
+                                      decoration: BoxDecoration(
+                                        color: Color(0xFFE6F7F7),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Text(
+                                        _productDetails['category'],
+                                        style: TextStyle(
+                                          color: Color(0xFF008080),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                if (_productDetails['type'] == 'inventory' &&
+                                    _productDetails['price'] != null &&
+                                    _productDetails['inventory_price'] != null)
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        '${_productDetails['inventory_price']}DA',
+                                        style: TextStyle(
+                                          fontSize: 26,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF008080),
+                                        ),
+                                      ),
+                                      Text(
+                                        '${_productDetails['price']}DA',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w400,
+                                          color: Colors.grey[600],
+                                          decoration:
+                                              TextDecoration.lineThrough,
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.red[50],
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                          border: Border.all(
+                                              color: Colors.red[300]!),
+                                        ),
+                                        child: Text(
+                                          '${_calculateDiscountPercentage(_productDetails['price'].toString(), _productDetails['inventory_price'].toString())}% OFF',
+                                          style: TextStyle(
+                                            color: Colors.red,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                else
+                                  Text(
+                                    '${_productDetails['price'] ?? '0.00'}DA',
+                                    style: TextStyle(
+                                      fontSize: 26,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF008080),
+                                    ),
+                                  ),
+                                SizedBox(height: 4),
+                                if (_productDetails['stock'] != null)
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.inventory_2_outlined,
+                                        size: 16,
+                                        color: _productDetails['stock'] > 10
+                                            ? Colors.green
+                                            : _productDetails['stock'] > 0
+                                                ? Colors.orange
+                                                : Colors.red,
+                                      ),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        _productDetails['stock'] > 0
+                                            ? '${_productDetails['stock']} in stock'
+                                            : 'Out of stock',
+                                        style: TextStyle(
+                                          color: _productDetails['stock'] > 10
+                                              ? Colors.green
+                                              : _productDetails['stock'] > 0
+                                                  ? Colors.orange
+                                                  : Colors.red,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 24),
+                        if (_userRole != 'Supplier' &&
+                            _productDetails['stock'] != null &&
+                            _productDetails['stock'] > 0)
+                          Row(
+                            children: [
+                              Text(
+                                'Quantity:',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              SizedBox(width: 16),
+                              Container(
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey[300]!),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  children: [
+                                    IconButton(
+                                      icon: Icon(Icons.remove, size: 18),
+                                      onPressed: _decrementQuantity,
+                                      color: Color(0xFF008080),
+                                      constraints: BoxConstraints(
+                                        minWidth: 36,
+                                        minHeight: 36,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                    ),
+                                    Container(
+                                      padding:
+                                          EdgeInsets.symmetric(horizontal: 12),
+                                      child: Text(
+                                        '$_quantity',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: Icon(Icons.add, size: 18),
+                                      onPressed: _incrementQuantity,
+                                      color: Color(0xFF008080),
+                                      constraints: BoxConstraints(
+                                        minWidth: 36,
+                                        minHeight: 36,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        SizedBox(height: 24),
+                        Text(
+                          'Description',
                           style: TextStyle(
-                            color: Colors.white,
+                            fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            fontSize: 14,
+                            color: Colors.black87,
                           ),
                         ),
-                      ),
+                        SizedBox(height: 8),
+                        Text(
+                          _productDetails['description'] ??
+                              'No description available',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.black87,
+                            height: 1.5,
+                          ),
+                        ),
+                        SizedBox(height: 24),
+                        if (_productDetails['store_id'] != null)
+                          Container(
+                            padding: EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[50],
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey[200]!),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: Color(0xFF008080).withOpacity(0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    Icons.store,
+                                    color: Color(0xFF008080),
+                                    size: 24,
+                                  ),
+                                ),
+                                SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      SizedBox(height: 4),
+                                      Text(
+                                        'Verified Seller',
+                                        style: TextStyle(
+                                          color: Colors.green,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: _ownerUserId != null
+                                      ? () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  ProfileScreen(
+                                                userId: _ownerUserId,
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      : null, // Disable button if ownerUserId is null
+                                  child: Text(
+                                    'Visit Profile',
+                                    style: TextStyle(
+                                      color: _ownerUserId != null
+                                          ? Color(0xFF008080)
+                                          : Colors.grey,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        SizedBox(height: 32),
+                        if (_productDetails['type'] != null)
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: _productDetails['type'] == 'new'
+                                  ? Colors.blue[50]
+                                  : Colors.amber[50],
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: _productDetails['type'] == 'new'
+                                    ? Colors.blue[300]!
+                                    : Colors.amber[300]!,
+                              ),
+                            ),
+                            child: Text(
+                              _productDetails['type'] == 'new'
+                                  ? 'New Product'
+                                  : 'Inventory Item',
+                              style: TextStyle(
+                                color: _productDetails['type'] == 'new'
+                                    ? Colors.blue[700]
+                                    : Colors.amber[700],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        SizedBox(height: 80),
+                      ],
                     ),
-                ],
-              ),
+                  ),
+                ),
+              ],
             ),
-          ),
-
-          // Product Details
-          SliverToBoxAdapter(
-            child: Container(
-              padding: EdgeInsets.all(16),
+      bottomSheet: _isLoading || _userRole == 'Supplier'
+          ? null
+          : Container(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.05),
@@ -289,428 +676,85 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                   ),
                 ],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Image indicators if we have multiple images
-                  if (_productImages.length > 1)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 16.0),
-                      child: Center(
-                        child: AnimatedSmoothIndicator(
-                          activeIndex: _currentImageIndex,
-                          count: _productImages.length,
-                          effect: WormEffect(
-                            dotHeight: 8,
-                            dotWidth: 8,
-                            activeDotColor: Color(0xFF008080),
-                            dotColor: Colors.grey[300]!,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                  // Product Name and Category
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _productDetails['product_name'] ?? 'Product Name',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            if (_productDetails['category'] != null)
-                              Container(
-                                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                decoration: BoxDecoration(
-                                  color: Color(0xFFE6F7F7),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  _productDetails['category'],
-                                  style: TextStyle(
-                                    color: Color(0xFF008080),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      // Price
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          if (_productDetails['type'] == 'inventory' &&
-                              _productDetails['price'] != null &&
-                              _productDetails['inventory_price'] != null)
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  '${_productDetails['inventory_price']}DA',
-                                  style: TextStyle(
-                                    fontSize: 26,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF008080),
-                                  ),
-                                ),
-                                Text(
-                                  '${_productDetails['price']}DA',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w400,
-                                    color: Colors.grey[600],
-                                    decoration: TextDecoration.lineThrough,
-                                  ),
-                                ),
-                                Container(
-                                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red[50],
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: Colors.red[300]!),
-                                  ),
-                                  child: Text(
-                                    '${_calculateDiscountPercentage(_productDetails['price'], _productDetails['inventory_price'])}% OFF',
-                                    style: TextStyle(
-                                      color: Colors.red,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            )
-                          else
-                            Text(
-                              '${_productDetails['price'] ?? '0.00'}DA',
-                              style: TextStyle(
-                                fontSize: 26,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF008080),
-                              ),
-                            ),
-                          SizedBox(height: 4),
-                          if (_productDetails['stock'] != null)
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.inventory_2_outlined,
-                                  size: 16,
-                                  color: _productDetails['stock'] > 10
-                                      ? Colors.green
-                                      : _productDetails['stock'] > 0
-                                      ? Colors.orange
-                                      : Colors.red,
-                                ),
-                                SizedBox(width: 4),
-                                Text(
-                                  _productDetails['stock'] > 0
-                                      ? '${_productDetails['stock']} in stock'
-                                      : 'Out of stock',
-                                  style: TextStyle(
-                                    color: _productDetails['stock'] > 10
-                                        ? Colors.green
-                                        : _productDetails['stock'] > 0
-                                        ? Colors.orange
-                                        : Colors.red,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-
-                  SizedBox(height: 24),
-
-                  // Quantity Selector (only for non-Suppliers)
-                  if (_userRole != 'Supplier' &&
-                      _productDetails['stock'] != null &&
-                      _productDetails['stock'] > 0)
-                    Row(
-                      children: [
-                        Text(
-                          'Quantity:',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.black87,
-                          ),
-                        ),
-                        SizedBox(width: 16),
-                        Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey[300]!),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            children: [
-                              IconButton(
-                                icon: Icon(Icons.remove, size: 18),
-                                onPressed: _decrementQuantity,
-                                color: Color(0xFF008080),
-                                constraints: BoxConstraints(
-                                  minWidth: 36,
-                                  minHeight: 36,
-                                ),
-                                padding: EdgeInsets.zero,
-                              ),
-                              Container(
-                                padding: EdgeInsets.symmetric(horizontal: 12),
-                                child: Text(
-                                  '$_quantity',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              IconButton(
-                                icon: Icon(Icons.add, size: 18),
-                                onPressed: _incrementQuantity,
-                                color: Color(0xFF008080),
-                                constraints: BoxConstraints(
-                                  minWidth: 36,
-                                  minHeight: 36,
-                                ),
-                                padding: EdgeInsets.zero,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-
-                  SizedBox(height: 24),
-
-                  // Description
-                  Text(
-                    'Description',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    _productDetails['description'] ?? 'No description available',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.black87,
-                      height: 1.5,
-                    ),
-                  ),
-
-                  SizedBox(height: 24),
-
-                  // Store Information
-                  if (_productDetails['store_id'] != null)
+              child: SafeArea(
+                child: Row(
+                  children: [
                     Container(
-                      padding: EdgeInsets.all(16),
+                      width: 48,
+                      height: 48,
                       decoration: BoxDecoration(
-                        color: Colors.grey[50],
+                        border: Border.all(color: Color(0xFF008080)),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey[200]!),
                       ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: Color(0xFF008080).withOpacity(0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.store,
-                              color: Color(0xFF008080),
-                              size: 24,
-                            ),
-                          ),
-                          SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                SizedBox(height: 4),
-                                Text(
-                                  'Verified Seller',
-                                  style: TextStyle(
-                                    color: Colors.green,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => StoreScreen(
-                                    storeId: _productDetails['store_id'],
-                                  ),
-                                ),
-                              );
-                            },
-                            child: Text(
-                              'Visit Store',
-                              style: TextStyle(
-                                color: Color(0xFF008080),
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
+                      child: IconButton(
+                        icon:
+                            Icon(Icons.chat_outlined, color: Color(0xFF008080)),
+                        onPressed: () {
+                          // Implement chat functionality
+                        },
                       ),
                     ),
-
-                  SizedBox(height: 32),
-
-                  // Type Badge
-                  if (_productDetails['type'] != null)
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: _productDetails['type'] == 'new'
-                            ? Colors.blue[50]
-                            : Colors.amber[50],
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: _productDetails['type'] == 'new'
-                              ? Colors.blue[300]!
-                              : Colors.amber[300]!,
+                    SizedBox(width: 12),
+                    Expanded(
+                      flex: 1,
+                      child: ElevatedButton(
+                        onPressed: _productDetails['stock'] != null &&
+                                _productDetails['stock'] > 0
+                            ? _addToCart
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Color(0xFF008080),
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: Color(0xFF008080)),
+                          ),
+                          elevation: 0,
                         ),
-                      ),
-                      child: Text(
-                        _productDetails['type'] == 'new' ? 'New Product' : 'Inventory Item',
-                        style: TextStyle(
-                          color: _productDetails['type'] == 'new'
-                              ? Colors.blue[700]
-                              : Colors.amber[700],
-                          fontWeight: FontWeight.w500,
+                        child: Text(
+                          'Add to Cart',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
-
-                  SizedBox(height: 80),
-                ],
+                    SizedBox(width: 12),
+                    Expanded(
+                      flex: 1,
+                      child: ElevatedButton(
+                        onPressed: _productDetails['stock'] != null &&
+                                _productDetails['stock'] > 0
+                            ? _buyNow
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFF008080),
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: Text(
+                          'Buy Now',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-      // Show bottomSheet only for non-Suppliers
-      bottomSheet: _isLoading || _userRole == 'Supplier'
-          ? null
-          : Container(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: Offset(0, -5),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Color(0xFF008080)),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: IconButton(
-                  icon: Icon(Icons.chat_outlined, color: Color(0xFF008080)),
-                  onPressed: () {
-                    // Implement chat functionality
-                  },
-                ),
-              ),
-              SizedBox(width: 12),
-              // Add to Cart Button
-              Expanded(
-                flex: 1,
-                child: ElevatedButton(
-                  onPressed: _productDetails['stock'] != null && _productDetails['stock'] > 0
-                      ? _addToCart
-                      : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: Color(0xFF008080),
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: Color(0xFF008080)),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    'Add to Cart',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(width: 12),
-              // Buy Now Button
-              Expanded(
-                flex: 1,
-                child: ElevatedButton(
-                  onPressed: _productDetails['stock'] != null && _productDetails['stock'] > 0
-                      ? _buyNow
-                      : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF008080),
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    'Buy Now',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
-  // Build image gallery carousel
   Widget _buildImageGallery() {
-    // If no images available, show a fallback
     if (_productImages.isEmpty && _productDetails['image'] == null) {
       return Container(
         color: Colors.grey[200],
@@ -720,7 +764,6 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
       );
     }
 
-    // If only one image or using the old 'image' field
     if (_productImages.isEmpty && _productDetails['image'] != null) {
       return Hero(
         tag: 'product-${widget.product}',
@@ -754,7 +797,6 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
       );
     }
 
-    // Multiple images - create a carousel
     return Hero(
       tag: 'product-${widget.product}',
       child: CarouselSlider.builder(
@@ -786,7 +828,8 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                   color: Colors.grey[200],
                   child: Center(
                     child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF008080)),
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(Color(0xFF008080)),
                     ),
                   ),
                 ),
@@ -795,7 +838,8 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.broken_image, color: Colors.grey[400], size: 64),
+                      Icon(Icons.broken_image,
+                          color: Colors.grey[400], size: 64),
                       SizedBox(height: 16),
                       Text(
                         'Image not available',
@@ -812,7 +856,6 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
     );
   }
 
-  // Show fullscreen image viewer
   void _showFullScreenImage(BuildContext context, int initialIndex) {
     Navigator.push(
       context,
@@ -845,7 +888,8 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                       fit: BoxFit.contain,
                       placeholder: (context, url) => Center(
                         child: CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
                       ),
                     ),
@@ -859,14 +903,13 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
     );
   }
 
-  // Helper method to calculate discount percentage
-  String _calculateDiscountPercentage(String originalPrice, String discountedPrice) {
+  String _calculateDiscountPercentage(
+      String originalPrice, String discountedPrice) {
     try {
       double original = double.parse(originalPrice.replaceAll('DA', '').trim());
-      double discounted = double.parse(discountedPrice.replaceAll('DA', '').trim());
-
+      double discounted =
+          double.parse(discountedPrice.replaceAll('DA', '').trim());
       if (original <= 0) return '0';
-
       double percentage = ((original - discounted) / original) * 100;
       return percentage.toStringAsFixed(0);
     } catch (e) {
@@ -882,7 +925,6 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image placeholder
             Container(
               height: MediaQuery.of(context).size.height * 0.4,
               color: Colors.white,
@@ -893,35 +935,30 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title placeholder
                   Container(
                     width: double.infinity,
                     height: 32,
                     color: Colors.white,
                   ),
                   SizedBox(height: 16),
-                  // Price placeholder
                   Container(
                     width: 100,
                     height: 24,
                     color: Colors.white,
                   ),
                   SizedBox(height: 32),
-                  // Description title placeholder
                   Container(
                     width: 120,
                     height: 20,
                     color: Colors.white,
                   ),
                   SizedBox(height: 16),
-                  // Description content placeholder
                   Container(
                     width: double.infinity,
                     height: 100,
                     color: Colors.white,
                   ),
                   SizedBox(height: 24),
-                  // Store placeholder
                   Container(
                     width: double.infinity,
                     height: 80,

@@ -1,25 +1,27 @@
-import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
+
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+
 import 'product_details.dart';
 
-class StoreScreen extends StatefulWidget {
+class StoreProductScreen extends StatefulWidget {
   final int storeId;
 
-  const StoreScreen({
+  const StoreProductScreen({
     Key? key,
     required this.storeId,
   }) : super(key: key);
 
   @override
-  _StoreScreenState createState() => _StoreScreenState();
+  _StoreProductScreenState createState() => _StoreProductScreenState();
 }
 
-class _StoreScreenState extends State<StoreScreen> {
+class _StoreProductScreenState extends State<StoreProductScreen> {
   bool _isLoading = true;
   bool _isConnected = true;
   List<dynamic> _storeProducts = [];
@@ -56,7 +58,8 @@ class _StoreScreenState extends State<StoreScreen> {
     String? token = prefs.getString('auth_token');
 
     try {
-      final url = Uri.parse('http://192.168.43.101:8000/api/products/storeName/${widget.storeId}');
+      final url = Uri.parse(
+          'http://192.168.1.8:8000/api/products/storeName/${widget.storeId}');
       final response = await http.get(
         url,
         headers: {
@@ -75,7 +78,8 @@ class _StoreScreenState extends State<StoreScreen> {
         // Extract unique categories from products
         Set<String> categorySet = {'All'};
         for (var product in products) {
-          if (product['category'] != null && product['category'].toString().isNotEmpty) {
+          if (product['category'] != null &&
+              product['category'].toString().isNotEmpty) {
             categorySet.add(product['category'].toString());
           }
         }
@@ -113,11 +117,14 @@ class _StoreScreenState extends State<StoreScreen> {
 
     return _storeProducts.where((product) {
       bool matchesCategory = _selectedCategory == 'All' ||
-          (product['category'] != null && product['category'] == _selectedCategory);
+          (product['category'] != null &&
+              product['category'] == _selectedCategory);
 
       bool matchesSearch = _searchController.text.isEmpty ||
           (product['product_name'] != null &&
-              product['product_name'].toLowerCase().contains(_searchController.text.toLowerCase()));
+              product['product_name']
+                  .toLowerCase()
+                  .contains(_searchController.text.toLowerCase()));
 
       return matchesCategory && matchesSearch;
     }).toList();
@@ -142,7 +149,8 @@ class _StoreScreenState extends State<StoreScreen> {
               ),
               actions: [
                 IconButton(
-                  icon: Icon(_isSearching ? Icons.close : Icons.search, color: Colors.white),
+                  icon: Icon(_isSearching ? Icons.close : Icons.search,
+                      color: Colors.white),
                   onPressed: () {
                     setState(() {
                       _isSearching = !_isSearching;
@@ -164,40 +172,40 @@ class _StoreScreenState extends State<StoreScreen> {
                 centerTitle: false,
                 title: _isSearching
                     ? Container(
-                  height: 40,
-                  alignment: Alignment.center,
-                  padding: EdgeInsets.symmetric(horizontal: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: TextField(
-                    controller: _searchController,
-                    style: TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'Search in this store...',
-                      hintStyle: TextStyle(color: Colors.white70),
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: EdgeInsets.zero,
-                      suffixIcon: IconButton(
-                        icon: Icon(Icons.search, color: Colors.white),
-                        onPressed: () {
-                          // Apply search filter locally instead of fetching
-                          setState(() {});
-                        },
-                      ),
-                    ),
-                    onSubmitted: (_) => setState(() {}),
-                  ),
-                )
+                        height: 40,
+                        alignment: Alignment.center,
+                        padding: EdgeInsets.symmetric(horizontal: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: TextField(
+                          controller: _searchController,
+                          style: TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: 'Search in this store...',
+                            hintStyle: TextStyle(color: Colors.white70),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.zero,
+                            suffixIcon: IconButton(
+                              icon: Icon(Icons.search, color: Colors.white),
+                              onPressed: () {
+                                // Apply search filter locally instead of fetching
+                                setState(() {});
+                              },
+                            ),
+                          ),
+                          onSubmitted: (_) => setState(() {}),
+                        ),
+                      )
                     : Text(
-                  _storeInfo['store_name'] ?? 'Store #${widget.storeId}',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                        _storeInfo['store_name'] ?? 'Store #${widget.storeId}',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                 background: Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
@@ -231,7 +239,8 @@ class _StoreScreenState extends State<StoreScreen> {
                       Expanded(
                         child: ListView.builder(
                           scrollDirection: Axis.horizontal,
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           itemCount: _categories.length,
                           itemBuilder: (context, index) {
                             final category = _categories[index];
@@ -247,15 +256,24 @@ class _StoreScreenState extends State<StoreScreen> {
                                 },
                                 child: Chip(
                                   label: Text(category),
-                                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                                  backgroundColor: isSelected ? Color(0xFF008080) : Colors.white,
+                                  padding: EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 0),
+                                  backgroundColor: isSelected
+                                      ? Color(0xFF008080)
+                                      : Colors.white,
                                   labelStyle: TextStyle(
-                                    color: isSelected ? Colors.white : Colors.black87,
-                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : Colors.black87,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
                                   ),
                                   shape: StadiumBorder(
                                     side: BorderSide(
-                                      color: isSelected ? Color(0xFF008080) : Colors.grey.shade300,
+                                      color: isSelected
+                                          ? Color(0xFF008080)
+                                          : Colors.grey.shade300,
                                     ),
                                   ),
                                 ),
@@ -275,27 +293,27 @@ class _StoreScreenState extends State<StoreScreen> {
         body: _isLoading && _storeProducts.isEmpty
             ? _buildLoadingShimmer()
             : !_isConnected
-            ? _buildNoConnectionView()
-            : filteredProducts.isEmpty
-            ? _buildEmptyProductsView()
-            : RefreshIndicator(
-          onRefresh: () => fetchStoreData(refresh: true),
-          color: Color(0xFF008080),
-          child: Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: MasonryGridView.count(
-              controller: _scrollController,
-              crossAxisCount: 2,
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              itemCount: filteredProducts.length,
-              itemBuilder: (context, index) {
-                final product = filteredProducts[index];
-                return _buildProductCard(product);
-              },
-            ),
-          ),
-        ),
+                ? _buildNoConnectionView()
+                : filteredProducts.isEmpty
+                    ? _buildEmptyProductsView()
+                    : RefreshIndicator(
+                        onRefresh: () => fetchStoreData(refresh: true),
+                        color: Color(0xFF008080),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12.0),
+                          child: MasonryGridView.count(
+                            controller: _scrollController,
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 16,
+                            crossAxisSpacing: 16,
+                            itemCount: filteredProducts.length,
+                            itemBuilder: (context, index) {
+                              final product = filteredProducts[index];
+                              return _buildProductCard(product);
+                            },
+                          ),
+                        ),
+                      ),
       ),
       bottomNavigationBar: Container(
         height: 80,
@@ -343,7 +361,8 @@ class _StoreScreenState extends State<StoreScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ProductDetailsPage(product: product['product_id']),
+            builder: (context) =>
+                ProductDetailsPage(product: product['product_id']),
           ),
         );
       },
@@ -371,49 +390,56 @@ class _StoreScreenState extends State<StoreScreen> {
                   children: [
                     product['image'] != null
                         ? Hero(
-                      tag: 'product-${product['product_id'] ?? UniqueKey()}',
-                      child: CachedNetworkImage(
-                        imageUrl: product['image'],
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        memCacheWidth: 600,
-                        memCacheHeight: 600,
-                        placeholder: (context, url) => Container(
-                          color: Colors.grey[200],
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF008080)),
-                              strokeWidth: 2,
-                            ),
-                          ),
-                        ),
-                        errorWidget: (context, url, error) => Container(
-                          color: Colors.grey[200],
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.broken_image, color: Colors.grey[400], size: 40),
-                              SizedBox(height: 8),
-                              Text(
-                                'Image not available',
-                                style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                                textAlign: TextAlign.center,
+                            tag:
+                                'product-${product['product_id'] ?? UniqueKey()}',
+                            child: CachedNetworkImage(
+                              imageUrl: product['image'],
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              memCacheWidth: 600,
+                              memCacheHeight: 600,
+                              placeholder: (context, url) => Container(
+                                color: Colors.grey[200],
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        Color(0xFF008080)),
+                                    strokeWidth: 2,
+                                  ),
+                                ),
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    )
+                              errorWidget: (context, url, error) => Container(
+                                color: Colors.grey[200],
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.broken_image,
+                                        color: Colors.grey[400], size: 40),
+                                    SizedBox(height: 8),
+                                    Text(
+                                      'Image not available',
+                                      style: TextStyle(
+                                          color: Colors.grey[600],
+                                          fontSize: 12),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          )
                         : Container(
-                      color: Colors.grey[200],
-                      child: Icon(Icons.image_not_supported, color: Colors.grey),
-                    ),
+                            color: Colors.grey[200],
+                            child: Icon(Icons.image_not_supported,
+                                color: Colors.grey),
+                          ),
                     if (product['type'] != null)
                       Positioned(
                         top: 8,
                         left: 8,
                         child: Container(
-                          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
                             color: product['type'] == 'new'
                                 ? Colors.blue[700]
@@ -478,8 +504,8 @@ class _StoreScreenState extends State<StoreScreen> {
                       children: [
                         Text(
                           product['type'] == 'inventory'
-                              ? '\$${product['inventory_price'] ?? '0.00'}'
-                              : '\$${product['price'] ?? '0.00'}',
+                              ? '${product['inventory_price'] ?? '0.00'}DA'
+                              : '${product['price'] ?? '0.00'}DQ',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 18,
@@ -540,7 +566,8 @@ class _StoreScreenState extends State<StoreScreen> {
                       color: Colors.white,
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(Icons.store, color: Color(0xFF008080), size: 32),
+                    child:
+                        Icon(Icons.store, color: Color(0xFF008080), size: 32),
                   ),
                   SizedBox(width: 16),
                   Expanded(
@@ -548,7 +575,8 @@ class _StoreScreenState extends State<StoreScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _storeInfo['store_name'] ?? 'Store #${widget.storeId}',
+                          _storeInfo['store_name'] ??
+                              'Store #${widget.storeId}',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -588,8 +616,10 @@ class _StoreScreenState extends State<StoreScreen> {
                     ),
                   ),
                   SizedBox(height: 16),
-                  _buildInfoTile(Icons.inventory_2_outlined, 'Product Count', '${_storeProducts.length} products'),
-                  _buildInfoTile(Icons.category_outlined, 'Categories', '${_categories.length - 1} categories'),
+                  _buildInfoTile(Icons.inventory_2_outlined, 'Product Count',
+                      '${_storeProducts.length} products'),
+                  _buildInfoTile(Icons.category_outlined, 'Categories',
+                      '${_categories.length - 1} categories'),
 
                   SizedBox(height: 24),
 
@@ -808,7 +838,8 @@ class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => maxHeight;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) {
     return SizedBox.expand(child: child);
   }
 
