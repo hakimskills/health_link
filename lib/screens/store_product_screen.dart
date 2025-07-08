@@ -59,7 +59,7 @@ class _StoreProductScreenState extends State<StoreProductScreen> {
 
     try {
       final url = Uri.parse(
-          'http://192.168.1.8:8000/api/products/storeName/${widget.storeId}');
+          'http://192.168.43.101:8000/api/products/storeName/${widget.storeId}');
       final response = await http.get(
         url,
         headers: {

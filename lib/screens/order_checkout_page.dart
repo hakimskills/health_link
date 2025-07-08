@@ -161,7 +161,7 @@ class _OrderCheckoutPageState extends State<OrderCheckoutPage>
     await prefs.setString('delivery_address', _deliveryAddress);
 
     try {
-      final url = Uri.parse('http://192.168.1.8:8000/api/product-orders');
+      final url = Uri.parse('http://192.168.43.101:8000/api/product-orders');
       final Map<String, dynamic> requestBody = {
         'buyer_id': _userId,
         'delivery_address': _deliveryAddress,
@@ -413,6 +413,12 @@ class _OrderCheckoutPageState extends State<OrderCheckoutPage>
     );
   }
 
+  void _deleteItem(int index) {
+    setState(() {
+      _items.removeAt(index);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     double total = _items.fold(0.0, (sum, item) {
@@ -537,41 +543,84 @@ class _OrderCheckoutPageState extends State<OrderCheckoutPage>
                               ],
                             ),
                             const SizedBox(height: 24),
-                            ...List.generate(
-                              _items.length,
-                              (index) => Container(
-                                margin: const EdgeInsets.only(bottom: 16),
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: Color(0xFFF8FAFC),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: Color(0xFFE2E8F0)),
-                                ),
-                                child: Row(
+                            if (_items.isEmpty)
+                              Center(
+                                child: Column(
                                   children: [
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(12),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color:
-                                                Colors.black.withOpacity(0.1),
-                                            blurRadius: 8,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ],
+                                    Icon(
+                                      Icons.remove_shopping_cart_rounded,
+                                      color: Color(0xFF718096),
+                                      size: 60,
+                                    ),
+                                    SizedBox(height: 16),
+                                    Text(
+                                      'No items in your order',
+                                      style: TextStyle(
+                                        color: Color(0xFF718096),
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
                                       ),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(12),
-                                        child: _items[index]['image'] != null
-                                            ? Image.network(
-                                                _items[index]['image'],
-                                                width: 70,
-                                                height: 70,
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (context, error,
-                                                        stackTrace) =>
-                                                    Container(
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else
+                              ...List.generate(
+                                _items.length,
+                                (index) => Container(
+                                  margin: const EdgeInsets.only(bottom: 16),
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border:
+                                        Border.all(color: Color(0xFFE2E8F0)),
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color:
+                                                  Colors.black.withOpacity(0.1),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          child: _items[index]['image'] != null
+                                              ? Image.network(
+                                                  _items[index]['image'],
+                                                  width: 70,
+                                                  height: 70,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (context, error,
+                                                          stackTrace) =>
+                                                      Container(
+                                                    width: 70,
+                                                    height: 70,
+                                                    decoration: BoxDecoration(
+                                                      color: Color(0xFFE2E8F0),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              12),
+                                                    ),
+                                                    child: const Icon(
+                                                        Icons
+                                                            .image_not_supported,
+                                                        color:
+                                                            Color(0xFF718096)),
+                                                  ),
+                                                )
+                                              : Container(
                                                   width: 70,
                                                   height: 70,
                                                   decoration: BoxDecoration(
@@ -584,119 +633,124 @@ class _OrderCheckoutPageState extends State<OrderCheckoutPage>
                                                       Icons.image_not_supported,
                                                       color: Color(0xFF718096)),
                                                 ),
-                                              )
-                                            : Container(
-                                                width: 70,
-                                                height: 70,
-                                                decoration: BoxDecoration(
-                                                  color: Color(0xFFE2E8F0),
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
-                                                ),
-                                                child: const Icon(
-                                                    Icons.image_not_supported,
-                                                    color: Color(0xFF718096)),
-                                              ),
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            _items[index]['product_name'] ??
-                                                'Product',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 16,
-                                              color: Color(0xFF2D3748),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              _items[index]['product_name'] ??
+                                                  'Product',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 16,
+                                                color: Color(0xFF2D3748),
+                                              ),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          const SizedBox(height: 6),
+                                            const SizedBox(height: 6),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: Color(0xFF008080)
+                                                    .withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: Text(
+                                                'Qty: ${_items[index]['quantity']}',
+                                                style: const TextStyle(
+                                                  color: Color(0xFF008080),
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        children: [
                                           Container(
                                             padding: const EdgeInsets.symmetric(
-                                                horizontal: 8, vertical: 4),
+                                                horizontal: 12, vertical: 6),
                                             decoration: BoxDecoration(
                                               color: Color(0xFF008080)
                                                   .withOpacity(0.1),
                                               borderRadius:
-                                                  BorderRadius.circular(8),
+                                                  BorderRadius.circular(12),
                                             ),
                                             child: Text(
-                                              'Qty: ${_items[index]['quantity']}',
+                                              '${_items[index]['price']?.toString() ?? '0.00'}DA',
                                               style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
                                                 color: Color(0xFF008080),
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
+                                                fontSize: 15,
                                               ),
                                             ),
                                           ),
+                                          IconButton(
+                                            icon: Icon(
+                                              Icons.delete_outline,
+                                              color: Colors.red[600],
+                                              size: 24,
+                                            ),
+                                            onPressed: () => _deleteItem(index),
+                                          ),
                                         ],
                                       ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 12, vertical: 6),
-                                      decoration: BoxDecoration(
-                                        color:
-                                            Color(0xFF008080).withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(12),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            if (_items.isNotEmpty)
+                              Container(
+                                margin: const EdgeInsets.only(top: 8),
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFF008080),
+                                      Color(0xFF20B2AA)
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      'Total Amount:',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
                                       ),
-                                      child: Text(
-                                        '${_items[index]['price']?.toString() ?? '0.00'}DA',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFF008080),
-                                          fontSize: 15,
-                                        ),
+                                    ),
+                                    Text(
+                                      '${total.toStringAsFixed(2)}DA',
+                                      style: const TextStyle(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                            ),
-                            Container(
-                              margin: const EdgeInsets.only(top: 8),
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [
-                                    Color(0xFF008080),
-                                    Color(0xFF20B2AA)
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text(
-                                    'Total Amount:',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  Text(
-                                    '${total.toStringAsFixed(2)}DA',
-                                    style: const TextStyle(
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
                           ],
                         ),
                       ),
@@ -977,7 +1031,7 @@ class _OrderCheckoutPageState extends State<OrderCheckoutPage>
               ),
               child: SafeArea(
                 child: ElevatedButton(
-                  onPressed: _placeOrder,
+                  onPressed: _items.isEmpty ? null : _placeOrder,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF008080),
                     foregroundColor: Colors.white,

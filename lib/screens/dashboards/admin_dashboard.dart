@@ -27,7 +27,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     String? token = prefs.getString("auth_token");
 
     final response = await http.get(
-      Uri.parse("http://192.168.1.8:8000/api/admin/registration-requests"),
+      Uri.parse("http://192.168.43.101:8000/api/admin/registration-requests"),
       headers: {
         "Authorization": "Bearer $token",
         "Accept": "application/json",
@@ -63,7 +63,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     String? token = prefs.getString("auth_token");
 
     final response = await http.post(
-      Uri.parse("http://192.168.1.8:8000/api/admin/${action}-request/$id"),
+      Uri.parse("http://192.168.43.101:8000/api/admin/${action}-request/$id"),
       headers: {
         "Authorization": "Bearer $token",
         "Accept": "application/json",

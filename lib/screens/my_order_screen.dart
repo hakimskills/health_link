@@ -7,7 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 
-import 'rating_pop_up.dart'; // Add this import
+import 'rating_pop_up.dart';
 
 class MyOrderScreen extends StatefulWidget {
   const MyOrderScreen({Key? key}) : super(key: key);
@@ -50,7 +50,7 @@ class _MyOrderScreenState extends State<MyOrderScreen>
       return;
     }
 
-    final url = 'http://192.168.1.8:8000/api/buyer-orders';
+    final url = 'http://192.168.43.101:8000/api/buyer-orders';
 
     try {
       final response = await http.get(
@@ -127,7 +127,7 @@ class _MyOrderScreenState extends State<MyOrderScreen>
     try {
       final response = await http.put(
         Uri.parse(
-            'http://192.168.1.8:8000/api/product-orders/$orderId/deliver'),
+            'http://192.168.43.101:8000/api/product-orders/$orderId/deliver'),
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
@@ -172,7 +172,8 @@ class _MyOrderScreenState extends State<MyOrderScreen>
 
     try {
       final response = await http.put(
-        Uri.parse('http://192.168.1.8:8000/api/product-orders/$orderId/cancel'),
+        Uri.parse(
+            'http://192.168.43.101:8000/api/product-orders/$orderId/cancel'),
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',

@@ -28,7 +28,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     String? token = prefs.getString("auth_token");
 
     final response = await http.get(
-      Uri.parse("http://192.168.1.8:8000/api/user"),
+      Uri.parse("http://192.168.43.101:8000/api/user"),
       headers: {
         "Authorization": "Bearer $token",
         "Accept": "application/json",
@@ -54,7 +54,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     String? token = prefs.getString("auth_token");
 
     final response = await http.post(
-      Uri.parse("http://192.168.1.8:8000/api/logout"),
+      Uri.parse("http://192.168.43.101:8000/api/logout"),
       headers: {
         "Authorization": "Bearer $token",
         "Accept": "application/json",

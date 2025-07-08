@@ -43,7 +43,7 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
       String? token = prefs.getString("auth_token");
 
       final response = await http.put(
-        Uri.parse("http://192.168.1.8:8000/api/user/update-password"),
+        Uri.parse("http://192.168.43.101:8000/api/user/update-password"),
         headers: {
           "Authorization": "Bearer $token",
           "Accept": "application/json",

@@ -23,29 +23,73 @@ class LoginScreen extends HookWidget {
     final passwordController = useTextEditingController();
     final formKey = useMemoized(() => GlobalKey<FormState>());
 
-    // State hooks
     final isLoading = useState(false);
     final passwordVisible = useState(false);
     final loginError = useState<String?>(null);
 
-    // Animation controller - simplified with no curve
     final animationController = useAnimationController(
       duration: const Duration(milliseconds: 1200),
     )..forward();
 
-    // Theme
     final size = MediaQuery.of(context).size;
     final theme = Theme.of(context);
     final primaryColor = const Color(0xFF00857C);
     final secondaryColor = const Color(0xFF232F34);
     final bgColor = const Color(0xFFF8FAFC);
+
+    // Check if user is already logged in
+    useEffect(() {
+      Future<void> checkAuthStatus() async {
+        final prefs = await SharedPreferences.getInstance();
+        final token = prefs.getString('auth_token');
+        final role = prefs.getString('user_role');
+
+        if (token != null && role != null) {
+          Widget nextScreen;
+          switch (role) {
+            case 'Dentist':
+            case 'Doctor':
+            case 'Labo':
+            case 'Pharmacist':
+              nextScreen = HealthcareDashboard();
+              break;
+            case 'Supplier':
+              nextScreen = SupplierDashboard();
+              break;
+            case 'Admin':
+              nextScreen = AdminDashboard();
+              break;
+            default:
+              return;
+          }
+
+          // Navigate to the appropriate dashboard
+          Navigator.pushReplacement(
+            context,
+            PageRouteBuilder(
+              pageBuilder: (context, animation, secondaryAnimation) =>
+                  nextScreen,
+              transitionsBuilder:
+                  (context, animation, secondaryAnimation, child) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              transitionDuration: const Duration(milliseconds: 600),
+            ),
+          );
+        }
+      }
+
+      checkAuthStatus();
+      return null; // No cleanup needed
+    }, []); // Empty dependency list to run once on mount
+
     Future<void> saveDeviceToken(String token) async {
       final fcmToken = await FirebaseMessaging.instance.getToken();
       if (fcmToken == null) return;
 
       try {
         final response = await http.post(
-          Uri.parse("http://192.168.1.8:8000/api/save-device-token"),
+          Uri.parse("http://192.168.43.101:8000/api/save-device-token"),
           headers: {
             'Authorization': 'Bearer $token',
             'Content-Type': 'application/json',
@@ -72,7 +116,7 @@ class LoginScreen extends HookWidget {
 
       try {
         final response = await http.post(
-          Uri.parse("http://192.168.1.8:8000/api/login"),
+          Uri.parse("http://192.168.43.101:8000/api/login"),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             "email": emailController.text,
@@ -104,7 +148,7 @@ class LoginScreen extends HookWidget {
           await prefs.setString("first_name", firstName);
           await prefs.setString("last_name", lastName);
 
-          await saveDeviceToken(token); // 👈 Save FCM token to Laravel backend
+          await saveDeviceToken(token);
 
           Widget nextScreen;
           if (role == "Dentist" ||
@@ -178,7 +222,6 @@ class LoginScreen extends HookWidget {
           SafeArea(
             child: CustomScrollView(
               slivers: [
-                // Main content
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: Container(
@@ -186,19 +229,13 @@ class LoginScreen extends HookWidget {
                     child: Column(
                       children: [
                         const SizedBox(height: 10),
-
-                        // Logo
-                        // Logo
-                        // Replace this section in your code (around line 180-220):
-
-// Logo with reduced spacing
                         Hero(
                           tag: 'app_logo',
                           child: Image.asset(
                             "assets/healthlink_logo.png",
-                            height: 200, // Reduced from 280 to 200
-                            width: 250, // Reduced from 280 to 200
-                            fit: BoxFit.cover, // Ensure proper scaling
+                            height: 150,
+                            width: 200,
+                            fit: BoxFit.contain,
                           ),
                         )
                             .animate()
@@ -246,8 +283,7 @@ class LoginScreen extends HookWidget {
                               delay: 400.ms,
                             ),
 
-// You can also reduce this spacing if needed
-                        const SizedBox(height: 30), // Reduced from 40 to 30
+                        const SizedBox(height: 30),
                         // Form
                         Form(
                           key: formKey,

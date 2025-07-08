@@ -33,7 +33,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _loadingStores = false;
   bool _isOwnProfile = false; // Track if viewing own profile
 
-  final String baseUrl = 'http://192.168.1.8:8000';
+  final String baseUrl = 'http://192.168.43.101:8000';
   final Color primaryColor = const Color(0xFF008080);
 
   @override

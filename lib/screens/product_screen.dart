@@ -70,7 +70,8 @@ class _ProductScreenState extends State<ProductScreen>
     // Fetch store owner's ID
     try {
       final response = await http.get(
-        Uri.parse('http://192.168.1.8:8000/api/store/${widget.storeId}/owner'),
+        Uri.parse(
+            'http://192.168.43.101:8000/api/store/${widget.storeId}/owner'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -106,7 +107,7 @@ class _ProductScreenState extends State<ProductScreen>
 
     try {
       final response = await http.get(
-        Uri.parse('http://192.168.1.8:8000/api/products/${widget.storeId}'),
+        Uri.parse('http://192.168.43.101:8000/api/products/${widget.storeId}'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -422,8 +423,9 @@ class _ProductScreenState extends State<ProductScreen>
                       MaterialPageRoute(
                         builder: (context) => AddProductPage(
                           storeId: widget.storeId,
-                          productType:
-                              _tabController.index == 0 ? 'inventory' : 'new',
+                          productType: _tabController.index == 0
+                              ? 'new'
+                              : 'inventory', // Fixed logic
                         ),
                       ),
                     );
@@ -432,7 +434,7 @@ class _ProductScreenState extends State<ProductScreen>
                     }
                   },
                 )
-              : null, // Hide FAB for non-owners
+              : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
@@ -969,7 +971,7 @@ class _ProductScreenState extends State<ProductScreen>
     String? token = prefs.getString('auth_token');
     try {
       final response = await http.delete(
-        Uri.parse('http://192.168.1.8:8000/api/product/$productId'),
+        Uri.parse('http://192.168.43.101:8000/api/product/$productId'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -1082,7 +1084,7 @@ class _ProductScreenState extends State<ProductScreen>
     }
     try {
       final response = await http.post(
-        Uri.parse('http://192.168.1.8:8000/api/products/stock-clearance'),
+        Uri.parse('http://192.168.43.101:8000/api/products/stock-clearance'),
         headers: {
           'Authorization': 'Bearer $token',
           'Accept': 'application/json',
@@ -1192,7 +1194,6 @@ class _ProductScreenState extends State<ProductScreen>
   }
 
   Widget _buildEmptyState(bool isStore) {
-    // Check if the logged-in user is the store owner
     bool isOwner = loggedInUserId != null && storeOwnerId == loggedInUserId;
 
     return Center(
@@ -1242,7 +1243,7 @@ class _ProductScreenState extends State<ProductScreen>
             ),
           ),
           SizedBox(height: 32),
-          if (!isSearching && isOwner) // Only show add button for owners
+          if (!isSearching && isOwner)
             ElevatedButton.icon(
               icon: Icon(isStore ? Icons.storefront : Icons.inventory_2),
               label: Text("Add ${isStore ? "Store" : "Inventory"} Product"),
@@ -1261,7 +1262,7 @@ class _ProductScreenState extends State<ProductScreen>
                   MaterialPageRoute(
                     builder: (context) => AddProductPage(
                       storeId: widget.storeId,
-                      productType: isStore ? 'new' : 'inventory',
+                      productType: isStore ? 'inventory' : 'new', // Fixed logic
                     ),
                   ),
                 );

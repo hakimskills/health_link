@@ -217,7 +217,7 @@ class RatingPopup {
                                               prefs.getString('auth_token');
                                           final response = await http.post(
                                             Uri.parse(
-                                                'http://192.168.1.8:8000/api/ratings'),
+                                                'http://192.168.43.101:8000/api/ratings'),
                                             headers: {
                                               'Accept': 'application/json',
                                               'Content-Type':

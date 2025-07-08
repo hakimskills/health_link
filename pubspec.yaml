@@ -105,6 +105,8 @@ flutter:
     - assets/dentist.svg
     - assets/order.svg
     - assets/used_equipment.png
+    - assets/pOrder.png
+    - assets/pSold.png
 
 
 

@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 
+import 'dashboards/add_store_page.dart';
 import 'product_screen.dart';
 
 class MyStoresScreen extends StatefulWidget {
@@ -22,6 +23,7 @@ class _MyStoresScreenState extends State<MyStoresScreen>
   bool isLoading = true;
   bool hasError = false;
   String errorMessage = '';
+  String? userRole; // Add userRole variable
 
   late AnimationController _animationController;
 
@@ -51,10 +53,13 @@ class _MyStoresScreenState extends State<MyStoresScreen>
     String? token = prefs.getString('auth_token');
     int? userId = int.tryParse(prefs.getString('user_id') ?? '');
 
+    // Get user role
+    userRole = prefs.getString('user_role');
+
     if (token != null && userId != null) {
       try {
         final response = await http.get(
-          Uri.parse('http://192.168.1.8:8000/api/stores/user/$userId'),
+          Uri.parse('http://192.168.43.101:8000/api/stores/user/$userId'),
           headers: {
             'Authorization': 'Bearer $token',
             'Accept': 'application/json',
@@ -69,6 +74,16 @@ class _MyStoresScreenState extends State<MyStoresScreen>
               stores = jsonDecode(response.body);
               print(stores);
               isLoading = false;
+              _animationController.forward();
+            });
+          }
+        } else if (response.statusCode == 404) {
+          // Handle 404 as "no stores found" - this is a valid response, not an error
+          if (mounted) {
+            setState(() {
+              stores = []; // Set empty list
+              isLoading = false;
+              hasError = false; // Important: no error state
               _animationController.forward();
             });
           }
@@ -107,6 +122,35 @@ class _MyStoresScreenState extends State<MyStoresScreen>
       hasError = false;
     });
     await _fetchStores();
+  }
+
+  // Check if user can add stores (not Doctor or Dentist)
+  bool _canAddStores() {
+    return userRole != 'Doctor' && userRole != 'Dentist';
+  }
+
+  void _navigateToAddStore() async {
+    final result = await Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => AddStorePage(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          const begin = Offset(0.0, 1.0);
+          const end = Offset.zero;
+          const curve = Curves.easeOutCubic;
+          var tween =
+              Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+          var offsetAnimation = animation.drive(tween);
+          return SlideTransition(position: offsetAnimation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 400),
+      ),
+    );
+
+    // Refresh stores list if a new store was added
+    if (result == true) {
+      _refreshStores();
+    }
   }
 
   @override
@@ -150,6 +194,38 @@ class _MyStoresScreenState extends State<MyStoresScreen>
           ),
         ],
       ),
+      // Add floating action button for non-medical users
+      floatingActionButton: _canAddStores()
+          ? Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: primaryColor.withOpacity(0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: FloatingActionButton.extended(
+                onPressed: _navigateToAddStore,
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                icon: const Icon(Icons.add_business_rounded, size: 24),
+                label: const Text(
+                  'Add Store',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            )
+          : null,
     );
   }
 
@@ -181,31 +257,6 @@ class _MyStoresScreenState extends State<MyStoresScreen>
           ],
         ),
       ),
-      actions: [
-        IconButton(
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Icon(Icons.notifications_outlined,
-                color: primaryColor, size: 20),
-          ),
-          onPressed: () {
-// Handle notifications
-          },
-        ),
-        const SizedBox(width: 8),
-      ],
-      iconTheme: IconThemeData(color: primaryColor),
     );
   }
 
@@ -286,26 +337,44 @@ class _MyStoresScreenState extends State<MyStoresScreen>
         children: [
           Icon(
             Icons.store_outlined,
-            size: 60,
+            size: 80,
             color: Colors.grey[400],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           Text(
             'No stores found',
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 22,
               fontWeight: FontWeight.w600,
               color: secondaryColor,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Text(
-            'You don\'t have any stores yet',
+            _canAddStores()
+                ? 'Start by adding your first store'
+                : 'You don\'t have access to any stores yet',
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 16,
               color: Colors.grey[600],
             ),
+            textAlign: TextAlign.center,
           ),
+          if (_canAddStores()) ...[
+            const SizedBox(height: 32),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: primaryColor.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

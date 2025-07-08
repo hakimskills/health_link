@@ -12,7 +12,6 @@ import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
 import '../user_profile/profile_screen.dart';
 import 'cart_manager.dart';
-// Import ProfileScreen
 
 class ProductDetailsPage extends StatefulWidget {
   final dynamic product;
@@ -23,12 +22,49 @@ class ProductDetailsPage extends StatefulWidget {
   _ProductDetailsPageState createState() => _ProductDetailsPageState();
 }
 
+class StarRating extends StatelessWidget {
+  final double rating;
+  final int maxStars;
+  final double size;
+  final Color filledColor;
+  final Color unfilledColor;
+
+  const StarRating({
+    Key? key,
+    required this.rating,
+    this.maxStars = 5,
+    this.size = 16,
+    this.filledColor = const Color(0xFFFFD700), // Gold color
+    this.unfilledColor = const Color(0xFFE0E0E0), // Light gray
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(maxStars, (index) {
+        double starValue = rating - index;
+        return Icon(
+          starValue >= 1.0
+              ? Icons.star
+              : starValue >= 0.5
+                  ? Icons.star_half
+                  : Icons.star_border,
+          color: starValue > 0 ? filledColor : unfilledColor,
+          size: size,
+        );
+      }),
+    );
+  }
+}
+
 class _ProductDetailsPageState extends State<ProductDetailsPage> {
   bool _isLoading = true;
   Map<String, dynamic> _productDetails = {};
   int _quantity = 1;
   String? _userRole;
   String? _ownerUserId; // Store the owner's userId
+  String? _currentUserId; // Store the logged-in user's ID
   final ScrollController _scrollController = ScrollController();
   bool _showTitle = false;
   final CarouselController _carouselController = CarouselController();
@@ -68,11 +104,12 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? token = prefs.getString('auth_token');
     String? role = prefs.getString('user_role');
+    String? userId = prefs.getString('user_id'); // Fetch current user's ID
 
     try {
       // Fetch product details
       final url =
-          Uri.parse('http://192.168.1.8:8000/api/product/${widget.product}');
+          Uri.parse('http://192.168.43.101:8000/api/product/${widget.product}');
       final response = await http.get(
         url,
         headers: {
@@ -86,6 +123,7 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
         setState(() {
           _productDetails = decoded;
           _userRole = role;
+          _currentUserId = userId; // Set current user's ID
         });
 
         // Fetch store owner's userId if store_id exists
@@ -93,7 +131,7 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
           try {
             final ownerResponse = await http.get(
               Uri.parse(
-                  'http://192.168.1.8:8000/api/store/${_productDetails['store_id']}/owner'),
+                  'http://192.168.43.101:8000/api/store/${_productDetails['store_id']}/owner'),
               headers: {
                 'Authorization': 'Bearer $token',
                 'Accept': 'application/json',
@@ -234,6 +272,12 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
       return primaryImage['image_path'];
     }
     return _productDetails['image'];
+  }
+
+  bool get _isOwnProduct {
+    return _currentUserId != null &&
+        _ownerUserId != null &&
+        _currentUserId == _ownerUserId;
   }
 
   @override
@@ -389,6 +433,31 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                                         ),
                                       ),
                                     ),
+                                  SizedBox(height: 8),
+                                  if (_productDetails['average_rating'] != null)
+                                    Row(
+                                      children: [
+                                        StarRating(
+                                          rating: double.tryParse(
+                                                  _productDetails[
+                                                          'average_rating']
+                                                      .toString()) ??
+                                              0.0,
+                                          size: 18,
+                                          filledColor: Color(0xFFFFD700),
+                                          unfilledColor: Colors.grey[300]!,
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          '(${double.tryParse(_productDetails['average_rating'].toString())?.toStringAsFixed(1) ?? '0.0'})',
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    )
                                 ],
                               ),
                             ),
@@ -485,7 +554,8 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                         SizedBox(height: 24),
                         if (_userRole != 'Supplier' &&
                             _productDetails['stock'] != null &&
-                            _productDetails['stock'] > 0)
+                            _productDetails['stock'] > 0 &&
+                            !_isOwnProduct)
                           Row(
                             children: [
                               Text(
@@ -539,6 +609,18 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                                 ),
                               ),
                             ],
+                          ),
+                        if (_isOwnProduct)
+                          Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: Text(
+                              'this is your own product.',
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                           ),
                         SizedBox(height: 24),
                         Text(
@@ -613,7 +695,7 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                                             ),
                                           );
                                         }
-                                      : null, // Disable button if ownerUserId is null
+                                      : null,
                                   child: Text(
                                     'Visit Profile',
                                     style: TextStyle(
@@ -662,7 +744,7 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
                 ),
               ],
             ),
-      bottomSheet: _isLoading || _userRole == 'Supplier'
+      bottomSheet: _isLoading || _userRole == 'Supplier' || _isOwnProduct
           ? null
           : Container(
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -679,22 +761,6 @@ class _ProductDetailsPageState extends State<ProductDetailsPage> {
               child: SafeArea(
                 child: Row(
                   children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Color(0xFF008080)),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: IconButton(
-                        icon:
-                            Icon(Icons.chat_outlined, color: Color(0xFF008080)),
-                        onPressed: () {
-                          // Implement chat functionality
-                        },
-                      ),
-                    ),
-                    SizedBox(width: 12),
                     Expanded(
                       flex: 1,
                       child: ElevatedButton(

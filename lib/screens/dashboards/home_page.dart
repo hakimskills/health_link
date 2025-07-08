@@ -18,8 +18,10 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   List<dynamic> _products = [];
+  List<dynamic> _recommendedProducts = [];
   Set<String> _productIds = {};
   bool _isLoading = true;
+  bool _isLoadingRecommendations = true;
   bool _hasMore = true;
   int _page = 1;
   final int _pageSize = 10;
@@ -36,12 +38,15 @@ class _HomePageState extends State<HomePage> {
   TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   int _cartItemCount = 0;
+  String? _userRole;
 
   @override
   void initState() {
     super.initState();
     _checkConnectivity();
+    _loadUserRole();
     fetchProducts();
+    fetchRecommendations();
     _scrollController.addListener(_scrollListener);
     _loadCartItemCount();
   }
@@ -52,6 +57,13 @@ class _HomePageState extends State<HomePage> {
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadUserRole() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _userRole = prefs.getString('user_role');
+    });
   }
 
   Future<void> _loadCartItemCount() async {
@@ -93,6 +105,59 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  Future<void> fetchRecommendations() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? token = prefs.getString('auth_token');
+    String? userRole = prefs.getString('user_role');
+
+    if (token == null || userRole == 'Supplier') {
+      setState(() {
+        _isLoadingRecommendations = false;
+      });
+      return;
+    }
+
+    try {
+      final url = Uri.parse('http://192.168.43.101:8000/api/recommendations');
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+          'Accept-Encoding': 'gzip',
+          'Connection': 'Keep-Alive',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        final List<dynamic> recommendations =
+            decoded['recommended_products'] ?? [];
+
+        if (mounted) {
+          setState(() {
+            _recommendedProducts = recommendations;
+            _isLoadingRecommendations = false;
+          });
+        }
+      } else {
+        print('Failed to fetch recommendations: ${response.statusCode}');
+        if (mounted) {
+          setState(() {
+            _isLoadingRecommendations = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error fetching recommendations: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingRecommendations = false;
+        });
+      }
+    }
+  }
+
   Future<void> fetchProducts(
       {bool refresh = false, bool loadMore = false}) async {
     if (refresh) {
@@ -103,6 +168,8 @@ class _HomePageState extends State<HomePage> {
         _hasMore = true;
         _isLoading = true;
       });
+      // Also refresh recommendations when refreshing products
+      fetchRecommendations();
     }
 
     if (!_hasMore && loadMore) return;
@@ -112,7 +179,7 @@ class _HomePageState extends State<HomePage> {
     }
 
     final url = Uri.parse(
-        'http://192.168.1.8:8000/api/products?page=$_page&limit=$_pageSize');
+        'http://192.168.43.101:8000/api/products?page=$_page&limit=$_pageSize');
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? token = prefs.getString('auth_token');
 
@@ -207,200 +274,288 @@ class _HomePageState extends State<HomePage> {
     }).toList();
   }
 
+  Widget _buildRecommendationsCarousel() {
+    if (_userRole == 'Supplier' ||
+        (!_isLoadingRecommendations && _recommendedProducts.isEmpty)) {
+      return SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+
+    if (_isLoadingRecommendations) {
+      return SliverToBoxAdapter(
+        child: Container(
+          height: 200,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: List.generate(
+                3,
+                (index) => Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: Shimmer.fromColors(
+                    baseColor: Colors.grey[300]!,
+                    highlightColor: Colors.grey[100]!,
+                    child: Container(
+                      width: 200,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SliverToBoxAdapter(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                Icon(Icons.recommend, color: Color(0xFF008080), size: 24),
+                Text(
+                  'Recommended for You',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            height: 300,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: _recommendedProducts.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final product = entry.value;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: Container(
+                      width: 200,
+                      child: ProductCard(
+                        key: ValueKey(
+                            'recommended-${product['product_id'] ?? product['id'] ?? index}'),
+                        product: product,
+                        isRecommended: true,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+          SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  RichText(
-                    text: TextSpan(
-                      children: [
-                        TextSpan(
-                          text: "Health",
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        TextSpan(
-                          text: "Link",
-                          style: TextStyle(
-                            color: Color(0xFF008080),
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      Stack(
+        child: CustomScrollView(
+          controller: _scrollController,
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    RichText(
+                      text: TextSpan(
                         children: [
-                          IconButton(
-                            icon: Icon(Icons.shopping_cart_outlined,
-                                color: Color(0xFF008080)),
-                            onPressed: () async {
-                              final cartItems =
-                                  await CartManager.getCartItems();
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      OrderCheckoutPage(cartItems: cartItems),
-                                ),
-                              );
-                            },
+                          TextSpan(
+                            text: "Health",
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                          if (_cartItemCount > 0)
-                            Positioned(
-                              right: 8,
-                              top: 8,
-                              child: Container(
-                                padding: EdgeInsets.all(4),
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Text(
-                                  '$_cartItemCount',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
+                          TextSpan(
+                            text: "Link",
+                            style: TextStyle(
+                              color: Color(0xFF008080),
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        Stack(
+                          children: [
+                            IconButton(
+                              icon: Icon(Icons.shopping_cart_outlined,
+                                  color: Color(0xFF008080)),
+                              onPressed: () async {
+                                final cartItems =
+                                    await CartManager.getCartItems();
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        OrderCheckoutPage(cartItems: cartItems),
+                                  ),
+                                );
+                              },
+                            ),
+                            if (_cartItemCount > 0)
+                              Positioned(
+                                right: 8,
+                                top: 8,
+                                child: Container(
+                                  padding: EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Text(
+                                    '$_cartItemCount',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                        ],
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.notifications_outlined,
-                            color: Color(0xFF008080)),
-                        onPressed: () {},
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: Offset(0, 2),
+                          ],
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (value) {
-                    setState(() {
-                      if (value.isEmpty) {
-                        fetchProducts(refresh: true);
-                      }
-                    });
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'Search health products...',
-                    prefixIcon: Icon(Icons.search, color: Color(0xFF008080)),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (value) {
+                      setState(() {
+                        if (value.isEmpty) {
+                          fetchProducts(refresh: true);
+                        }
+                      });
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Search health products...',
+                      prefixIcon: Icon(Icons.search, color: Color(0xFF008080)),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(vertical: 16),
+                    ),
                   ),
                 ),
               ),
             ),
-            Container(
-              height: 48,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: EdgeInsets.symmetric(horizontal: 12),
-                itemCount: _categories.length,
-                itemBuilder: (context, index) {
-                  final category = _categories[index];
-                  final isSelected = category == _selectedCategory;
+            if (_userRole != 'Supplier') _buildRecommendationsCarousel(),
+            SliverToBoxAdapter(
+              child: Container(
+                height: 48,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  itemCount: _categories.length,
+                  itemBuilder: (context, index) {
+                    final category = _categories[index];
+                    final isSelected = category == _selectedCategory;
 
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _selectedCategory = category;
-                          fetchProducts(refresh: true);
-                        });
-                      },
-                      child: Chip(
-                        label: Text(category),
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        backgroundColor:
-                            isSelected ? Color(0xFF008080) : Colors.white,
-                        labelStyle: TextStyle(
-                          color: isSelected ? Colors.white : Colors.black87,
-                          fontWeight:
-                              isSelected ? FontWeight.bold : FontWeight.normal,
-                        ),
-                        shape: StadiumBorder(
-                          side: BorderSide(
-                            color: isSelected
-                                ? Color(0xFF008080)
-                                : Colors.grey.shade300,
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _selectedCategory = category;
+                            fetchProducts(refresh: true);
+                          });
+                        },
+                        child: Chip(
+                          label: Text(category),
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          backgroundColor:
+                              isSelected ? Color(0xFF008080) : Colors.white,
+                          labelStyle: TextStyle(
+                            color: isSelected ? Colors.white : Colors.black87,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                          shape: StadiumBorder(
+                            side: BorderSide(
+                              color: isSelected
+                                  ? Color(0xFF008080)
+                                  : Colors.grey.shade300,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
             ),
-            Expanded(
-              child: _isLoading && _products.isEmpty
-                  ? _buildLoadingShimmer()
+            SliverPadding(
+              padding: const EdgeInsets.all(12.0),
+              sliver: _isLoading && _products.isEmpty
+                  ? SliverToBoxAdapter(child: _buildLoadingShimmer())
                   : !_isConnected
-                      ? _buildNoConnectionView()
+                      ? SliverToBoxAdapter(child: _buildNoConnectionView())
                       : filteredProducts.isEmpty
-                          ? _buildEmptyProductsView()
-                          : RefreshIndicator(
-                              onRefresh: () => fetchProducts(refresh: true),
-                              color: Color(0xFF008080),
-                              child: Padding(
-                                padding: const EdgeInsets.all(12.0),
+                          ? SliverToBoxAdapter(child: _buildEmptyProductsView())
+                          : SliverToBoxAdapter(
+                              child: RefreshIndicator(
+                                onRefresh: () => fetchProducts(refresh: true),
+                                color: Color(0xFF008080),
                                 child: Column(
                                   children: [
-                                    Expanded(
-                                      child: MasonryGridView.count(
-                                        controller: _scrollController,
-                                        crossAxisCount: 2,
-                                        mainAxisSpacing: 16,
-                                        crossAxisSpacing: 16,
-                                        itemCount: filteredProducts.length,
-                                        itemBuilder: (context, index) {
-                                          final product =
-                                              filteredProducts[index];
-                                          return ProductCard(
-                                            key: ValueKey(
-                                                product['product_id'] ??
-                                                    product['id'] ??
-                                                    index),
-                                            product: product,
-                                          );
-                                        },
-                                      ),
+                                    MasonryGridView.count(
+                                      shrinkWrap: true,
+                                      physics: NeverScrollableScrollPhysics(),
+                                      crossAxisCount: 2,
+                                      mainAxisSpacing: 16,
+                                      crossAxisSpacing: 16,
+                                      itemCount: filteredProducts.length,
+                                      itemBuilder: (context, index) {
+                                        final product = filteredProducts[index];
+                                        return ProductCard(
+                                          key: ValueKey(product['product_id'] ??
+                                              product['id'] ??
+                                              index),
+                                          product: product,
+                                        );
+                                      },
                                     ),
                                     if (_isLoadingMore)
                                       Padding(
@@ -519,10 +674,52 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
+class StarRating extends StatelessWidget {
+  final double rating;
+  final int maxStars;
+  final double size;
+  final Color filledColor;
+  final Color unfilledColor;
+
+  const StarRating({
+    Key? key,
+    required this.rating,
+    this.maxStars = 5,
+    this.size = 16,
+    this.filledColor = const Color(0xFFFFD700), // Gold color
+    this.unfilledColor = const Color(0xFFE0E0E0), // Light gray
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(maxStars, (index) {
+        double starValue = rating - index;
+
+        return Icon(
+          starValue >= 1.0
+              ? Icons.star
+              : starValue >= 0.5
+                  ? Icons.star_half
+                  : Icons.star_border,
+          color: starValue > 0 ? filledColor : unfilledColor,
+          size: size,
+        );
+      }),
+    );
+  }
+}
+
 class ProductCard extends StatelessWidget {
   final dynamic product;
+  final bool isRecommended;
 
-  const ProductCard({Key? key, required this.product}) : super(key: key);
+  const ProductCard({
+    Key? key,
+    required this.product,
+    this.isRecommended = false,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -553,6 +750,11 @@ class ProductCard extends StatelessWidget {
       imageUrl = product['image'];
     }
 
+    final double averageRating =
+        double.tryParse(product['average_rating']?.toString() ?? '0') ?? 0.0;
+    final int reviewCount =
+        int.tryParse(product['review_count']?.toString() ?? '0') ?? 0;
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -580,6 +782,7 @@ class ProductCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               AspectRatio(
                 aspectRatio: 1,
@@ -691,85 +894,154 @@ class ProductCard extends StatelessWidget {
                           ),
                         ),
                       ),
+                    if (isRecommended)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Container(
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Color(0xFF008080),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            'Recommended',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      product['product_name'] ?? 'Unknown Product',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        product['product_name'] ?? 'Unknown Product',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    SizedBox(height: 8),
-                    if (isInventory)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  '${inventoryPrice.toStringAsFixed(2)} DA',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 18,
-                                    color: Colors.red,
+                      SizedBox(height: 8),
+                      // Updated rating section - now shows for both regular and recommended products
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: averageRating > 0
+                            ? Row(
+                                children: [
+                                  StarRating(
+                                    rating: averageRating,
+                                    size: isRecommended
+                                        ? 12
+                                        : 14, // Smaller stars for recommendations
                                   ),
-                                  overflow: TextOverflow.ellipsis,
+                                  SizedBox(width: isRecommended ? 4 : 6),
+                                  Text(
+                                    '${averageRating.toStringAsFixed(1)}',
+                                    style: TextStyle(
+                                      fontSize: isRecommended ? 10 : 12,
+                                      color: Colors.grey[600],
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  if (reviewCount > 0) ...[
+                                    SizedBox(width: isRecommended ? 2 : 4),
+                                    Text(
+                                      '($reviewCount)',
+                                      style: TextStyle(
+                                        fontSize: isRecommended ? 10 : 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              )
+                            : Text(
+                                'No reviews yet',
+                                style: TextStyle(
+                                  fontSize: isRecommended ? 10 : 12,
+                                  color: Colors.grey[600],
                                 ),
                               ),
-                              SizedBox(width: 8),
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.red.shade100,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  'SAVE $discountPercentage%',
-                                  style: TextStyle(
-                                    color: Colors.red,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
+                      ),
+                      if (isInventory)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    '${inventoryPrice.toStringAsFixed(2)} DA',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: Colors.red,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
+                                SizedBox(width: 8),
+                                Container(
+                                  padding: EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.shade100,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'SAVE $discountPercentage%',
+                                    style: TextStyle(
+                                      color: Colors.red,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              '${originalPrice.toStringAsFixed(2)} DA',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey,
+                                decoration: TextDecoration.lineThrough,
                               ),
-                            ],
-                          ),
-                          Text(
-                            '${originalPrice.toStringAsFixed(2)} DA',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
-                              decoration: TextDecoration.lineThrough,
                             ),
-                          ),
-                        ],
-                      )
-                    else
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '${originalPrice.toStringAsFixed(2)} DA',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                              color: Color(0xFF008080),
+                          ],
+                        )
+                      else
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                '${originalPrice.toStringAsFixed(2)} DA',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 17,
+                                  color: Color(0xFF008080),
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                  ],
+                          ],
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ],

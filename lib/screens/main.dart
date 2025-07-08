@@ -89,7 +89,7 @@ Future<void> saveDeviceToken(String authToken) async {
     if (fcmToken != null) {
       final response = await http.post(
         Uri.parse(
-            'https://your-api.com/api/device-token'), // Replace with your API URL
+            'https://192.168.43.101/api/device-token'), // Replace with your API URL
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $authToken',
@@ -123,7 +123,6 @@ Widget getInitialScreen(String? token, String? role) {
     switch (role) {
       case "Dentist":
       case "Doctor":
-      case "Labo":
       case "Pharmacist":
         return HealthcareDashboard();
       case "Supplier":
@@ -206,7 +205,7 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'MedConnect',
+      title: 'HealthLink',
       theme: ThemeData(
         primarySwatch: MaterialColor(
           0xFF008080,

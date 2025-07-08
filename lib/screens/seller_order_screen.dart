@@ -40,7 +40,8 @@ class _SellerOrdersScreenState extends State<SellerOrdersScreen>
     final token = prefs.getString('auth_token');
     String? sellerId = prefs.getString('user_id');
 
-    final url = 'http://192.168.1.8:8000/api/product-orders/seller/$sellerId';
+    final url =
+        'http://192.168.43.101:8000/api/product-orders/seller/$sellerId';
 
     try {
       final response = await http.get(
@@ -90,7 +91,7 @@ class _SellerOrdersScreenState extends State<SellerOrdersScreen>
     try {
       final response = await http.put(
         Uri.parse(
-            'http://192.168.1.8:8000/api/product-orders/$orderId/approve'),
+            'http://192.168.43.101:8000/api/product-orders/$orderId/approve'),
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
@@ -122,7 +123,8 @@ class _SellerOrdersScreenState extends State<SellerOrdersScreen>
 
     try {
       final response = await http.put(
-        Uri.parse('http://192.168.1.8:8000/api/product-orders/$orderId/ship'),
+        Uri.parse(
+            'http://192.168.43.101:8000/api/product-orders/$orderId/ship'),
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
@@ -155,7 +157,8 @@ class _SellerOrdersScreenState extends State<SellerOrdersScreen>
 
     try {
       final response = await http.put(
-        Uri.parse('http://192.168.1.8:8000/api/product-orders/$orderId/cancel'),
+        Uri.parse(
+            'http://192.168.43.101:8000/api/product-orders/$orderId/cancel'),
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',

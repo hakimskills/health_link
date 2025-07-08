@@ -38,13 +38,11 @@ class _AddProductPageState extends State<AddProductPage> {
 
   final List<String> categories = [
     "Medical Equipment",
-    "Medications",
-    "Dental Supplies",
-    "Lab Supplies",
+    "Pharmaceuticals",
+    "Personal Protective Equipment",
+    "Home Healthcare Devices",
     "Health & Wellness",
-    "First Aid & Emergency",
-    "Protective Gear",
-    "Personal Care",
+    "First Aid Supplies",
     "Other (Custom)"
   ];
 
@@ -266,7 +264,7 @@ class _AddProductPageState extends State<AddProductPage> {
           ),
         ),
 
-        // Step 4: Category - Updated with dropdown
+        // Step 4: Category
         Form(
           key: _formKeys[3],
           child: Column(
@@ -513,7 +511,7 @@ class _AddProductPageState extends State<AddProductPage> {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token');
 
-    final uri = Uri.parse('http://192.168.1.8:8000/api/product');
+    final uri = Uri.parse('http://192.168.43.101:8000/api/product');
     final request = http.MultipartRequest('POST', uri)
       ..headers['Authorization'] = 'Bearer $token'
       ..headers['Accept'] = 'application/json'

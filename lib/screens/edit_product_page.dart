@@ -63,7 +63,7 @@ class _EditProductPageState extends State<EditProductPage> {
   // Condition options for used equipment
   final List<String> _conditionOptions = [
     'excellent',
-    'very_good',
+    'very good',
     'good',
     'fair',
     'poor',
@@ -134,7 +134,7 @@ class _EditProductPageState extends State<EditProductPage> {
     switch (condition) {
       case 'excellent':
         return 'Excellent';
-      case 'very_good':
+      case 'very good':
         return 'Very Good';
       case 'good':
         return 'Good';
@@ -151,7 +151,7 @@ class _EditProductPageState extends State<EditProductPage> {
     switch (condition) {
       case 'excellent':
         return Colors.green[700]!;
-      case 'very_good':
+      case 'very good':
         return Colors.lightGreen[700]!;
       case 'good':
         return Colors.yellow[700]!;
@@ -164,6 +164,26 @@ class _EditProductPageState extends State<EditProductPage> {
     }
   }
 
+  final List<String> _newInventoryCategories = [
+    "Medical Equipment",
+    "Pharmaceuticals",
+    "Personal Protective Equipment",
+    "Home Healthcare Devices",
+    "Health & Wellness",
+    "First Aid Supplies",
+    "Other (Custom)"
+  ];
+
+  final List<String> _usedEquipmentCategories = [
+    "Diagnostic Devices",
+    "Surgical Instruments",
+    "Monitoring Equipment",
+    "Therapeutic Equipment",
+    "Mobility Aids",
+    "Durable Medical Equipment",
+    "Other (Custom)"
+  ];
+
   Future<void> _updateProduct() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -174,7 +194,7 @@ class _EditProductPageState extends State<EditProductPage> {
       String? token = prefs.getString('auth_token');
 
       Uri url = Uri.parse(
-          'http://192.168.1.8:8000/api/product/${widget.product['product_id']}');
+          'http://192.168.43.101:8000/api/product/${widget.product['product_id']}');
 
       var request = http.MultipartRequest('POST', url);
       request.headers.addAll({
@@ -517,18 +537,7 @@ class _EditProductPageState extends State<EditProductPage> {
                     SizedBox(height: 16),
 
                     // Category
-                    _buildTextField(
-                      controller: _categoryController,
-                      label: 'Category',
-                      hint: 'Enter product category',
-                      icon: Icons.category_outlined,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter product category';
-                        }
-                        return null;
-                      },
-                    ),
+                    _buildCategoryField(),
                     SizedBox(height: 24),
 
                     // Update Button
@@ -566,6 +575,62 @@ class _EditProductPageState extends State<EditProductPage> {
                 ),
               ),
             ),
+    );
+  }
+
+  Widget _buildCategoryField() {
+    List<String> availableCategories = _productType == 'used_equipment'
+        ? _usedEquipmentCategories
+        : _newInventoryCategories;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Category',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[800],
+          ),
+        ),
+        SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.grey[300]!),
+          ),
+          child: DropdownButtonFormField<String>(
+            value: availableCategories.contains(_categoryController.text)
+                ? _categoryController.text
+                : null,
+            decoration: InputDecoration(
+              prefixIcon: Icon(Icons.category_outlined, color: primaryColor),
+              border: InputBorder.none,
+              contentPadding:
+                  EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              hintText: 'Select product category',
+            ),
+            items: availableCategories.map((category) {
+              return DropdownMenuItem<String>(
+                value: category,
+                child: Text(category),
+              );
+            }).toList(),
+            onChanged: (value) {
+              setState(() {
+                _categoryController.text = value ?? '';
+              });
+            },
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please select a product category';
+              }
+              return null;
+            },
+          ),
+        ),
+      ],
     );
   }
 

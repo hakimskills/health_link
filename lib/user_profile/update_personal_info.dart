@@ -34,7 +34,7 @@ class _UpdatePersonalInfoScreenState extends State<UpdatePersonalInfoScreen> {
 
     try {
       final response = await http.get(
-        Uri.parse("http://192.168.1.8:8000/api/user"),
+        Uri.parse("http://192.168.43.101:8000/api/user"),
         headers: {
           "Authorization": "Bearer $token",
           "Accept": "application/json",
@@ -99,7 +99,7 @@ class _UpdatePersonalInfoScreenState extends State<UpdatePersonalInfoScreen> {
 
     try {
       final nameResponse = await http.put(
-        Uri.parse("http://192.168.1.8:8000/api/user/update-name"),
+        Uri.parse("http://192.168.43.101:8000/api/user/update-name"),
         headers: {
           "Authorization": "Bearer $token",
           "Accept": "application/json",
@@ -113,7 +113,7 @@ class _UpdatePersonalInfoScreenState extends State<UpdatePersonalInfoScreen> {
       );
 
       final phoneResponse = await http.put(
-        Uri.parse("http://192.168.1.8:8000/api/user/update-phone"),
+        Uri.parse("http://192.168.43.101:8000/api/user/update-phone"),
         headers: {
           "Authorization": "Bearer $token",
           "Accept": "application/json",
@@ -126,7 +126,7 @@ class _UpdatePersonalInfoScreenState extends State<UpdatePersonalInfoScreen> {
       );
 
       final wilayaResponse = await http.put(
-        Uri.parse("http://192.168.1.8:8000/api/user/update-wilaya"),
+        Uri.parse("http://192.168.43.101:8000/api/user/update-wilaya"),
         headers: {
           "Authorization": "Bearer $token",
           "Accept": "application/json",

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'register_screen.dart';
+
 import 'login_screen.dart';
+import 'register_screen.dart';
 
 class RoleOption {
   final String name;
@@ -29,10 +30,6 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
     RoleOption(
       name: "Dentist",
       svgAsset: "assets/dentist.svg",
-    ),
-    RoleOption(
-      name: "Labo",
-      svgAsset: "assets/labo.svg",
     ),
     RoleOption(
       name: "Supplier",
@@ -65,36 +62,19 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
               // Logo and App Name
               Column(
                 children: [
-                  Container(
-                    padding: EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: primaryColor.withOpacity(0.2),
-                          blurRadius: 20,
-                          offset: Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      Icons.medical_services_outlined,
-                      size: 60,
-                      color: primaryColor,
-                    ),
+                  Image.asset(
+                    "assets/healthlink_logo.png",
+                    height: 150,
+                    width: 200,
+                    // Fallback icon if image fails to load
+                    errorBuilder: (context, error, stackTrace) {
+                      return Icon(
+                        Icons.medical_services_outlined,
+                        size: 80,
+                        color: primaryColor,
+                      );
+                    },
                   ),
-                  SizedBox(height: 20),
-                  Text(
-                    "HealthLink",
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: primaryColor,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  SizedBox(height: 10),
                   Text(
                     "Connect with healthcare professionals",
                     style: TextStyle(
@@ -160,7 +140,8 @@ class _LandingPageScreenState extends State<LandingPageScreen> {
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => LoginScreen()),
+                          MaterialPageRoute(
+                              builder: (context) => LoginScreen()),
                         );
                       },
                       child: Text(

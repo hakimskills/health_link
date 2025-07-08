@@ -20,7 +20,7 @@ class UsedEquipmentPage extends StatefulWidget {
 
 class _UsedEquipmentPageState extends State<UsedEquipmentPage>
     with SingleTickerProviderStateMixin {
-  final String apiUrl = 'http://192.168.1.8:8000/api/';
+  final String apiUrl = 'http://192.168.43.101:8000/api/';
   List<dynamic> products = [];
   List<dynamic> filteredProducts = [];
   bool isLoading = true;

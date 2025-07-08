@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:health_link/screens/my_order_screen.dart';
 import 'package:health_link/screens/used_equipment.dart';
 import 'package:health_link/user_profile/profile_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../my_stores_screen.dart';
+import '../orders_screen.dart';
+import '../product_screen.dart'; // Import ProductScreen
 import '../reusable component/app_drawer.dart';
 import '../reusable component/custom_bottom_nav.dart';
-import '../product_screen.dart'; // Import ProductScreen
 import '../store_selector_popup.dart'; // Import the store selector
 import 'home_page.dart';
 
@@ -50,11 +51,13 @@ class _HealthcareDashboardState extends State<HealthcareDashboard> {
           PageRouteBuilder(
             pageBuilder: (context, animation, secondaryAnimation) =>
                 RoleBasedRedirectScreen(storeId: storeId),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
               const begin = Offset(1.0, 0.0);
               const end = Offset.zero;
               const curve = Curves.easeOutCubic;
-              var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+              var tween =
+                  Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
               var offsetAnimation = animation.drive(tween);
               return SlideTransition(position: offsetAnimation, child: child);
             },
@@ -80,17 +83,23 @@ class _HealthcareDashboardState extends State<HealthcareDashboard> {
         children: [
           HomePage(),
           MyStoresScreen(),
-          MyOrderScreen(),
+          OrdersScreen(),
           ProfileScreen(),
         ],
       ),
       bottomNavigationBar: CustomBottomNav(
         selectedIndex: _selectedIndex,
         onItemTapped: _onItemTapped,
-        onFabPressed: _userRole == 'Doctor' || _userRole == 'Dentist'
+        onFabPressed: _userRole == 'Doctor' ||
+                _userRole == 'Dentist' ||
+                _userRole == 'Pharmacist'
             ? _showStoreSelector // Show selector for Doctor or Dentist
             : null,
-        fabLabel: _userRole == 'Doctor' || _userRole == 'Dentist' ? 'Add' : null,
+        fabLabel: _userRole == 'Doctor' ||
+                _userRole == 'Dentist' ||
+                _userRole == 'Pharmacist'
+            ? 'Add'
+            : null,
       ),
     );
   }
@@ -106,7 +115,8 @@ class _HealthcareDashboardState extends State<HealthcareDashboard> {
 class RoleBasedRedirectScreen extends StatelessWidget {
   final int storeId;
 
-  const RoleBasedRedirectScreen({Key? key, required this.storeId}) : super(key: key);
+  const RoleBasedRedirectScreen({Key? key, required this.storeId})
+      : super(key: key);
 
   @override
   Widget build(BuildContext context) {

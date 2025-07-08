@@ -23,8 +23,6 @@ class _AddUsedEquipmentPageState extends State<AddUsedEquipmentPage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
-  final TextEditingController _inventoryPriceController =
-      TextEditingController();
   final TextEditingController _stockController = TextEditingController();
   final TextEditingController _categoryController = TextEditingController();
   final TextEditingController _customCategoryController =
@@ -37,14 +35,12 @@ class _AddUsedEquipmentPageState extends State<AddUsedEquipmentPage> {
 
   // Predefined categories
   final List<String> _categories = [
-    "Medical Equipment",
-    "Medications",
-    "Dental Supplies",
-    "Lab Supplies",
-    "Health & Wellness",
-    "First Aid & Emergency",
-    "Protective Gear",
-    "Personal Care",
+    "Diagnostic Devices",
+    "Surgical Instruments",
+    "Monitoring Equipment",
+    "Therapeutic Equipment",
+    "Mobility Aids",
+    "Durable Medical Equipment",
     "Other (Custom)"
   ];
 
@@ -341,7 +337,7 @@ class _AddUsedEquipmentPageState extends State<AddUsedEquipmentPage> {
         SizedBox(height: 16),
         Column(
           children: _conditionOptions.map((condition) {
-            final isSelected = _selectedCondition == condition['value'];
+            final selected = _selectedCondition == condition['value'];
             return Container(
               margin: EdgeInsets.only(bottom: 12),
               child: InkWell(
@@ -355,12 +351,11 @@ class _AddUsedEquipmentPageState extends State<AddUsedEquipmentPage> {
                   padding: EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     border: Border.all(
-                      color:
-                          isSelected ? condition['color'] : Colors.grey[300]!,
-                      width: isSelected ? 2 : 1,
+                      color: selected ? condition['color'] : Colors.grey[300]!,
+                      width: selected ? 2 : 1,
                     ),
                     borderRadius: BorderRadius.circular(12),
-                    color: isSelected
+                    color: selected
                         ? condition['color'].withOpacity(0.1)
                         : Colors.white,
                   ),
@@ -368,8 +363,7 @@ class _AddUsedEquipmentPageState extends State<AddUsedEquipmentPage> {
                     children: [
                       Icon(
                         condition['icon'],
-                        color:
-                            isSelected ? condition['color'] : Colors.grey[600],
+                        color: selected ? condition['color'] : Colors.grey[600],
                         size: 24,
                       ),
                       SizedBox(width: 16),
@@ -382,7 +376,7 @@ class _AddUsedEquipmentPageState extends State<AddUsedEquipmentPage> {
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
-                                color: isSelected
+                                color: selected
                                     ? condition['color']
                                     : Colors.grey[800],
                               ),
@@ -398,7 +392,7 @@ class _AddUsedEquipmentPageState extends State<AddUsedEquipmentPage> {
                           ],
                         ),
                       ),
-                      if (isSelected)
+                      if (selected)
                         Icon(
                           Icons.check_circle,
                           color: condition['color'],
@@ -557,7 +551,7 @@ class _AddUsedEquipmentPageState extends State<AddUsedEquipmentPage> {
                   border: Border.all(color: Color(0xFF008080).withOpacity(0.3)),
                 ),
                 child: Text(
-                  "Set competitive prices based on the equipment's condition and market value. Include inventory cost if applicable.",
+                  "Set competitive prices based on the equipment's condition and market value.",
                   style: TextStyle(color: Colors.grey[700]),
                 ),
               ),
@@ -570,13 +564,6 @@ class _AddUsedEquipmentPageState extends State<AddUsedEquipmentPage> {
               ),
               SizedBox(height: 16),
               _buildTextField(
-                _inventoryPriceController,
-                "Inventory Price (Optional)",
-                isNumeric: true,
-                helperText: "Your cost/purchase price for tracking",
-              ),
-              SizedBox(height: 16),
-              _buildTextField(
                 _stockController,
                 "Quantity Available",
                 isNumeric: true,
@@ -586,7 +573,7 @@ class _AddUsedEquipmentPageState extends State<AddUsedEquipmentPage> {
           ),
         ),
 
-        // Step 5: Category (Updated with dropdown)
+        // Step 5: Category
         Form(
           key: _formKeys[4],
           child: Column(
@@ -983,9 +970,8 @@ class _AddUsedEquipmentPageState extends State<AddUsedEquipmentPage> {
     final category =
         _isCustomCategory ? _customCategoryController.text : _selectedCategory!;
 
-    // Log the category for debugging
-
-    final uri = Uri.parse('http://192.168.1.8:8000/api/product/used-equipment');
+    final uri =
+        Uri.parse('http://192.168.43.101:8000/api/product/used-equipment');
     final request = http.MultipartRequest('POST', uri)
       ..headers['Authorization'] = 'Bearer $token'
       ..headers['Accept'] = 'application/json'
@@ -996,11 +982,6 @@ class _AddUsedEquipmentPageState extends State<AddUsedEquipmentPage> {
       ..fields['stock'] = _stockController.text
       ..fields['category'] = category
       ..fields['condition'] = _selectedCondition!;
-
-    // Add inventory_price if provided
-    if (_inventoryPriceController.text.isNotEmpty) {
-      request.fields['inventory_price'] = _inventoryPriceController.text;
-    }
 
     // Add images to the request
     for (int i = 0; i < _selectedImages.length; i++) {
@@ -1026,8 +1007,6 @@ class _AddUsedEquipmentPageState extends State<AddUsedEquipmentPage> {
         );
         Navigator.pop(context, true);
       } else {
-        // Log the response body for debugging
-
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to add equipment: ${response.body}'),
@@ -1146,7 +1125,6 @@ class _AddUsedEquipmentPageState extends State<AddUsedEquipmentPage> {
     _nameController.dispose();
     _descriptionController.dispose();
     _priceController.dispose();
-    _inventoryPriceController.dispose();
     _stockController.dispose();
     _categoryController.dispose();
     super.dispose();

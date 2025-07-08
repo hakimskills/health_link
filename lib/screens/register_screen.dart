@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:health_link/screens/terms_dialogue.dart';
 import 'package:http/http.dart' as http;
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 
@@ -76,19 +77,14 @@ class RegisterScreen extends HookWidget {
   ];
 
   // List of available roles
-  final List<String> _roles = [
-    "Dentist",
-    "Doctor",
-    "Labo ",
-    "Pharmacist",
-    "Supplier"
-  ];
+  final List<String> _roles = ["Dentist", "Doctor", "Pharmacist", "Supplier"];
 
   // Define teal color
   final Color tealColor = Color(0xFF008080);
 
   @override
   Widget build(BuildContext context) {
+    final termsAccepted = useState(false);
     final formKey = useMemoized(() => GlobalKey<FormState>());
     final isLoading = useState(false);
 
@@ -127,12 +123,19 @@ class RegisterScreen extends HookWidget {
     // Handle registration
     Future<void> register() async {
       if (!formKey.currentState!.validate()) return;
+      if (!termsAccepted.value) {
+        _showErrorDialog(
+            context,
+            "Please accept the Terms of Use and Privacy Policy to continue.",
+            primaryColor);
+        return;
+      }
 
       isLoading.value = true;
 
       try {
         final response = await http.post(
-          Uri.parse("http://192.168.1.8:8000/api/register"),
+          Uri.parse("http://192.168.43.101:8000/api/register"),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             "first_name": firstNameController.text,
@@ -225,6 +228,15 @@ class RegisterScreen extends HookWidget {
     // Handle step navigation
     void nextStep() {
       if (formKey.currentState!.validate()) {
+        if (currentStep.value == 0 &&
+            selectedRole == null &&
+            !termsAccepted.value) {
+          _showErrorDialog(
+              context,
+              "Please accept the Terms of Use and Privacy Policy to continue.",
+              primaryColor);
+          return;
+        }
         if (currentStep.value < steps.length - 1) {
           currentStep.value++;
         } else {
@@ -343,6 +355,79 @@ class RegisterScreen extends HookWidget {
                         "Your role defines what you can do in the system. Choose the role that best matches your needs.",
                         style: TextStyle(
                           color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 24),
+                Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Checkbox(
+                        value: termsAccepted.value,
+                        onChanged: (bool? value) {
+                          termsAccepted.value = value ?? false;
+                        },
+                        activeColor: primaryColor,
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "I agree to HealthLink's",
+                              style: TextStyle(fontSize: 14),
+                            ),
+                            Row(
+                              children: [
+                                GestureDetector(
+                                  onTap: () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) =>
+                                          TermsDialogue(isTerms: true),
+                                    );
+                                  },
+                                  child: Text(
+                                    "Terms of Use",
+                                    style: TextStyle(
+                                      color: primaryColor,
+                                      fontWeight: FontWeight.bold,
+                                      decoration: TextDecoration.underline,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                                Text(" and ", style: TextStyle(fontSize: 14)),
+                                GestureDetector(
+                                  onTap: () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) =>
+                                          TermsDialogue(isTerms: false),
+                                    );
+                                  },
+                                  child: Text(
+                                    "Privacy Policy",
+                                    style: TextStyle(
+                                      color: primaryColor,
+                                      fontWeight: FontWeight.bold,
+                                      decoration: TextDecoration.underline,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -675,6 +760,79 @@ class RegisterScreen extends HookWidget {
                     value == null ? "Wilaya is required" : null,
                 searchable: true,
                 primaryColor: primaryColor,
+              ),
+              SizedBox(height: 24),
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Checkbox(
+                      value: termsAccepted.value,
+                      onChanged: (bool? value) {
+                        termsAccepted.value = value ?? false;
+                      },
+                      activeColor: primaryColor,
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "I agree to HealthLink's",
+                            style: TextStyle(fontSize: 14),
+                          ),
+                          Row(
+                            children: [
+                              GestureDetector(
+                                onTap: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) =>
+                                        TermsDialogue(isTerms: true),
+                                  );
+                                },
+                                child: Text(
+                                  "Terms of Use",
+                                  style: TextStyle(
+                                    color: primaryColor,
+                                    fontWeight: FontWeight.bold,
+                                    decoration: TextDecoration.underline,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                              Text(" and ", style: TextStyle(fontSize: 14)),
+                              GestureDetector(
+                                onTap: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) =>
+                                        TermsDialogue(isTerms: false),
+                                  );
+                                },
+                                child: Text(
+                                  "Privacy Policy",
+                                  style: TextStyle(
+                                    color: primaryColor,
+                                    fontWeight: FontWeight.bold,
+                                    decoration: TextDecoration.underline,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           );
